@@ -27,14 +27,6 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 		public function __construct( Integration $integration ) {
 			$this->integration = $integration;
 
-			if ( empty( $this->integration->menu_label ) ) {
-				$this->integration->menu_label = sprintf( '%s Updates', $this->integration->product_name );
-			}
-
-			if ( empty( $this->integration->menu_parent ) ) {
-				$this->integration->menu_parent = 'plugins.php';
-			}
-
 			add_action( 'admin_menu', [ $this, 'admin_menu' ], $this->integration->menu_priority );
 		}
 
@@ -45,6 +37,14 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 		 * @return void
 		 */
 		public function admin_menu() {
+			if ( empty( $this->integration->menu_label ) ) {
+				$this->integration->menu_label = sprintf( '%s Updates', $this->integration->product_name );
+			}
+
+			if ( empty( $this->integration->menu_parent ) ) {
+				$this->integration->menu_parent = 'plugins.php';
+			}
+
 			$page = add_submenu_page(
 				$this->integration->menu_parent,
 				$this->integration->menu_label,

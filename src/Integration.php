@@ -103,8 +103,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 
 		/**
 		 * Menu priority.
-		 * 
-		 * @var string
+		 *
+		 * @var int
 		 */
 		public $menu_priority;
 
@@ -154,7 +154,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 				$this->product_file = $this->product_slug;
 			}
 
-			$this->license_name = sanitize_html_class( "{$this->product_slug}{$this->product_id}" );
+			$this->license_name = sanitize_key( "{$this->product_slug}{$this->product_id}" );
 
 			new Updater( $this );
 			new Tracker( $this );
@@ -310,8 +310,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 				return $request;
 			}
 
-			$body = wp_remote_retrieve_body( $request );
-			$body = json_decode( $body, true );
+			$status_code = wp_remote_retrieve_response_code( $request );
+			$body        = wp_remote_retrieve_body( $request );
+			$body        = json_decode( $body, true );
 
 			if ( empty( $body ) ) {
 				return new WP_Error(
@@ -320,27 +321,16 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 				);
 			}
 
+			if ( $status_code >= 400 ) {
+				return new WP_Error(
+					! empty( $body['code'] ) ? $body['code'] : 'wprepo_api_error',
+					! empty( $body['message'] ) ? $body['message'] : 'API request failed'
+				);
+			}
+
 			return $body;
 		}
 
-		/**
-		 * Helper function to print array or object data in a <pre> tag for debugging.
-		 *
-		 * @since 1.0
-		 *
-		 * @param mixed $data The data to print.
-		 * @param bool  $exit Whether to exit after printing.
-		 * @return void
-		 */
-		public function p( $data, $exit = false ) {
-			echo '<pre>';
-			print_r( $data );
-			echo '</pre>';
-
-			if ( $exit ) {
-				exit;
-			}
-		}
 	}
 
 endif;

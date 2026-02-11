@@ -1,0 +1,14 @@
+{
+  "license": {
+    "code": "ABC-123-DEF",
+    "type": "premium",
+    "status": "expired",
+    "max_activations": 5,
+    "activation_count": 2,
+    "install_count": 3,
+    "buyer_name": "John Doe",
+    "buyer_email": "john@example.com",
+    "created": "2024-01-15 10:30:00",
+    "date_expire": "2024-06-15 10:30:00"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "updates": {
+    "new_version": "1.3.0",
+    "url": "https://example.com/my-plugin",
+    "package": "",
+    "tested": "6.4",
+    "requires_php": 7.4,
+    "requires": "5.0",
+    "upgrade_notice": "Important security fix.",
+    "slug": "my-plugin",
+    "plugin": "my-plugin/my-plugin.php"
+  }
+}
