@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! class_exists( 'Updater' ) ) :
+if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 
 	/**
 	 * Class Updater

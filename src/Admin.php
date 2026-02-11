@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! class_exists( 'Admin' ) ) :
+if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 
 	/**
 	 * Class Admin
@@ -67,6 +67,7 @@ if ( ! class_exists( 'Admin' ) ) :
 			$base_url = remove_query_arg( [ 'm' ] );
 
 			if ( isset( $_POST['wprepo_update'] ) ) {
+				check_admin_referer( 'wprepo_license_update' );
 				if ( empty( $_POST['wprepo_license'] ) ) {
 					delete_option( $this->integration->get_license_option() );
 					$this->integration->clear_updates_transient();
@@ -147,6 +148,7 @@ if ( ! class_exists( 'Admin' ) ) :
 				?>
 
 				<form method="post">
+					<?php wp_nonce_field( 'wprepo_license_update' ); ?>
 					<table class="form-table" role="presentation">
 						<tbody>
 							<tr>
@@ -255,7 +257,12 @@ if ( ! class_exists( 'Admin' ) ) :
 							$output
 						);
 					}
-				} else {
+				} elseif ( is_wp_error( $response ) ) {
+					printf(
+						'<div class="error" style="padding:10px 20px;">%s</div>',
+						$response->get_error_message()
+					);
+				} elseif ( ! empty( $response['details'] ) ) {
 					// No license code set yet.
 					$details = $response['details'];
 					$output  = '';

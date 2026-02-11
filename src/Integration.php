@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! class_exists( 'Integration' ) ) :
+if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 
 	/**
 	 * Class Integration
