@@ -9,7 +9,7 @@ namespace Shazzad\PluginUpdater;
 
 use WP_Error;
 
-if ( ! defined( 'ABSPATH' ) ) {
+if ( ! \defined( 'ABSPATH' ) ) {
 	exit;
 }
 
@@ -277,7 +277,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		public function api_request( $method, $license = '' ) {
 			$request_url = "{$this->api_url}/products/{$this->product_id}/$method";
 
-			$args = [ 
+			$args = [
 				'product_version' => $this->product_version,
 				'product_status'  => $this->product_status,
 				'wp_url'          => esc_url( site_url( '', 'https' ) ),

@@ -7,7 +7,7 @@
  */
 namespace Shazzad\PluginUpdater;
 
-if ( ! defined( 'ABSPATH' ) ) {
+if ( ! \defined( 'ABSPATH' ) ) {
 	exit;
 }
 
@@ -38,7 +38,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 		 */
 		public function admin_menu() {
 			if ( empty( $this->integration->menu_label ) ) {
-				$this->integration->menu_label = sprintf( '%s Updates', $this->integration->product_name );
+				$this->integration->menu_label = \sprintf( '%s Updates', $this->integration->product_name );
 			}
 
 			if ( empty( $this->integration->menu_parent ) ) {
@@ -64,63 +64,70 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 		 * @return void
 		 */
 		public function load_page() {
+			if ( ! isset( $_POST['wprepo_update'] ) ) {
+				return;
+			}
+
+			check_admin_referer( 'wprepo_license_update' );
+
 			$base_url = remove_query_arg( [ 'm' ] );
 
-			if ( isset( $_POST['wprepo_update'] ) ) {
-				check_admin_referer( 'wprepo_license_update' );
-				if ( empty( $_POST['wprepo_license'] ) ) {
-					delete_option( $this->integration->get_license_option() );
-					$this->integration->clear_updates_transient();
-					wp_redirect(
-						add_query_arg(
-							'message',
-							urlencode( 'License deactivated' ),
-							$base_url
-						)
-					);
-				} else {
-					$key      = sanitize_text_field( $_POST['wprepo_license'] );
-					$response = $this->integration->api_request( 'check_license', $key );
-
-					if ( is_wp_error( $response ) ) {
-						$message = $response->get_error_message();
-						wp_redirect(
-							add_query_arg(
-								'error',
-								urlencode( $message ),
-								$base_url
-							)
-						);
-					} elseif ( ! empty( $response['license'] ) ) {
-						update_option( $this->integration->get_license_option(), $key );
-						update_option(
-							$this->integration->license_name . '_data',
-							$response['license']
-						);
-
-						$this->integration->refresh_updates_transient();
-						wp_redirect(
-							add_query_arg(
-								'message',
-								urlencode( 'License activated' ),
-								$base_url
-							)
-						);
-					} else {
-						$message = ! empty( $response['message'] )
-							? $response['message']
-							: 'Invalid License Key';
-						wp_redirect(
-							add_query_arg(
-								'error',
-								urlencode( $message ),
-								$base_url
-							)
-						);
-					}
-				}
+			if ( empty( $_POST['wprepo_license'] ) ) {
+				delete_option( $this->integration->get_license_option() );
+				$this->integration->clear_updates_transient();
+				wp_redirect(
+					add_query_arg(
+						'message',
+						urlencode( 'License deactivated' ),
+						$base_url
+					)
+				);
 				exit;
 			}
+
+			$key      = sanitize_text_field( $_POST['wprepo_license'] );
+			$response = $this->integration->api_request( 'check_license', $key );
+
+			if ( is_wp_error( $response ) ) {
+				wp_redirect(
+					add_query_arg(
+						'error',
+						urlencode( $response->get_error_message() ),
+						$base_url
+					)
+				);
+				exit;
+			}
+
+			if ( ! empty( $response['license'] ) ) {
+				update_option( $this->integration->get_license_option(), $key );
+				update_option(
+					$this->integration->license_name . '_data',
+					$response['license']
+				);
+
+				$this->integration->refresh_updates_transient();
+				wp_redirect(
+					add_query_arg(
+						'message',
+						urlencode( 'License activated' ),
+						$base_url
+					)
+				);
+				exit;
+			}
+
+			$message = ! empty( $response['message'] )
+				? $response['message']
+				: 'Invalid License Key';
+			wp_redirect(
+				add_query_arg(
+					'error',
+					urlencode( $message ),
+					$base_url
+				)
+			);
+			exit;
 		}
 
 		/**
@@ -134,7 +141,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 			<div class="wrap">
 				<h2>
 					<?php
-					printf(
+					\printf(
 						__( '%s - Version: %s' ),
 						$this->integration->product_name,
 						$this->integration->product_version
@@ -143,17 +150,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 				</h2>
 
 				<?php
-				if ( ! empty( $_GET['message'] ) ) {
-					printf(
-						'<div class="updated fade"><p>%s</p></div>',
-						esc_html( urldecode( $_GET['message'] ) )
-					);
-				} elseif ( ! empty( $_GET['error'] ) ) {
-					printf(
-						'<div class="error fade"><p>%s</p></div>',
-						esc_html( urldecode( $_GET['error'] ) )
-					);
-				}
+				$this->render_notices();
 				?>
 
 				<form method="post">
@@ -187,128 +184,155 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 				<?php
 				$response = $this->integration->api_request( 'details' );
 
-				if ( $this->integration->has_license_code() ) {
-					if ( is_wp_error( $response ) ) {
-						printf(
-							'<div class="error" style="padding:10px 20px;">%s</div>',
-							$response->get_error_message()
-						);
-					} else {
-						$details = $response['details'];
-						$output  = '';
-
-						if (
-							isset( $details['version'] ) &&
-							version_compare( $details['version'], $this->integration->product_version, '>' )
-						) {
-							$output .= sprintf(
-								'<h3>Upgrade available. New version %s</h3>',
-								$details['version']
-							);
-							if ( ! empty( $details['changelog_new'] ) ) {
-								$output .= sprintf(
-									'<div><h4>Changelog:</h4>%s</div>',
-									wpautop( $details['changelog_new'] )
-								);
-							}
-							if ( ! empty( $details['upgrade_notice_new'] ) ) {
-								$output .= sprintf(
-									'<div><h4>Upgrade notice:</h4>%s</div>',
-									wpautop( $details['upgrade_notice_new'] )
-								);
-							}
-							if ( ! empty( $details['download_link'] ) ) {
-								$update_url = wp_nonce_url(
-									admin_url(
-										'update.php?action=upgrade-plugin&plugin='
-										. urlencode( $this->integration->product_file )
-									),
-									'upgrade-plugin_' . $this->integration->product_file
-								);
-
-								$output .= sprintf(
-									'<div>
-										<h4>Upgrade Now:</h4>
-										<a class="button button-primary" href="%s">Upgrade Now</a>
-									</div>',
-									$update_url
-								);
-							} else {
-								$license_data = get_option( $this->integration->license_name . '_data' );
-								if (
-									! empty( $license_data['status'] )
-									&& 'expired' === $license_data['status']
-								) {
-									$output .= '<strong style="color:red;">Your license has expired. Please renew your license to get updates.</strong>';
-								} elseif (
-									! empty( $license_data['status'] )
-									&& 'suspended' === $license_data['status']
-								) {
-									$output .= '<strong>Your license has been suspended. Please contact support.</strong>';
-								} else {
-									$output .= '<strong>Unable to upgrade. Please contact support.</strong>';
-								}
-							}
-						} else {
-							$license_data = get_option( $this->integration->license_name . '_data' );
-							$output .= '<div>You are using the latest version of our plugin.</div>';
-
-							if (
-								! empty( $license_data['status'] )
-								&& 'expired' === $license_data['status']
-							) {
-								$output .= '<p style="color:red;">Your license has expired. Please renew your license to get new updates.</p>';
-							}
-						}
-
-						printf(
-							'<div class="updated" style="padding:10px 20px;">%s</div>',
-							$output
-						);
-					}
-				} elseif ( is_wp_error( $response ) ) {
-					printf(
+				if ( is_wp_error( $response ) ) {
+					\printf(
 						'<div class="error" style="padding:10px 20px;">%s</div>',
 						$response->get_error_message()
 					);
+				} elseif ( $this->integration->has_license_code() && ! empty( $response['details'] ) ) {
+					$this->render_details_with_license( $response['details'] );
 				} elseif ( ! empty( $response['details'] ) ) {
-					// No license code set yet.
-					$details = $response['details'];
-					$output  = '';
-
-					if (
-						isset( $details['version'] ) &&
-						version_compare( $details['version'], $this->integration->product_version, '>' )
-					) {
-						$output .= sprintf(
-							'<h3>Upgrade available. New version %s</h3>',
-							$details['version']
-						);
-						if ( ! empty( $details['changelog_new'] ) ) {
-							$output .= sprintf(
-								'<div><h4>Changelog:</h4>%s</div>',
-								wpautop( $details['changelog_new'] )
-							);
-						}
-						if ( ! empty( $details['upgrade_notice_new'] ) ) {
-							$output .= sprintf(
-								'<div><h4>Upgrade notice:</h4>%s</div>',
-								wpautop( $details['upgrade_notice_new'] )
-							);
-						}
-						$output .= '<strong>Please save your license to receive updates.</strong>';
-					} else {
-						$output .= '<div>You are using the latest version of our plugin.</div>';
-					}
-
-					printf(
-						'<div class="updated" style="padding:10px 20px;">%s</div>',
-						$output
-					);
+					$this->render_details_without_license( $response['details'] );
 				}
 				?>
 			</div>
 			<?php
+		}
+
+		/**
+		 * Render flash message or error notice from query parameters.
+		 *
+		 * @return void
+		 */
+		private function render_notices() {
+			if ( ! empty( $_GET['message'] ) ) {
+				\printf(
+					'<div class="updated fade"><p>%s</p></div>',
+					esc_html( urldecode( $_GET['message'] ) )
+				);
+			} elseif ( ! empty( $_GET['error'] ) ) {
+				\printf(
+					'<div class="error fade"><p>%s</p></div>',
+					esc_html( urldecode( $_GET['error'] ) )
+				);
+			}
+		}
+
+		/**
+		 * Render upgrade version heading, changelog, and upgrade notice.
+		 *
+		 * @param array $details Plugin details from API response.
+		 * @return string HTML output.
+		 */
+		private function render_upgrade_info( $details ) {
+			$output = \sprintf(
+				'<h3>Upgrade available. New version %s</h3>',
+				$details['version']
+			);
+			if ( ! empty( $details['changelog_new'] ) ) {
+				$output .= \sprintf(
+					'<div><h4>Changelog:</h4>%s</div>',
+					wpautop( $details['changelog_new'] )
+				);
+			}
+			if ( ! empty( $details['upgrade_notice_new'] ) ) {
+				$output .= \sprintf(
+					'<div><h4>Upgrade notice:</h4>%s</div>',
+					wpautop( $details['upgrade_notice_new'] )
+				);
+			}
+
+			return $output;
+		}
+
+		/**
+		 * Render plugin details panel when a license code is present.
+		 *
+		 * @param array $details Plugin details from API response.
+		 * @return void
+		 */
+		private function render_details_with_license( $details ) {
+			$output = '';
+
+			if (
+				isset( $details['version'] ) &&
+				version_compare( $details['version'], $this->integration->product_version, '>' )
+			) {
+				$output .= $this->render_upgrade_info( $details );
+
+				if ( ! empty( $details['download_link'] ) ) {
+					$update_url = wp_nonce_url(
+						admin_url(
+							'update.php?action=upgrade-plugin&plugin='
+							. urlencode( $this->integration->product_file )
+						),
+						'upgrade-plugin_' . $this->integration->product_file
+					);
+
+					$output .= \sprintf(
+						'<div>
+							<h4>Upgrade Now:</h4>
+							<a class="button button-primary" href="%s">Upgrade Now</a>
+						</div>',
+						$update_url
+					);
+				} else {
+					$license_data = get_option( $this->integration->license_name . '_data' );
+					if (
+						! empty( $license_data['status'] )
+						&& 'expired' === $license_data['status']
+					) {
+						$output .= '<strong style="color:red;">Your license has expired. Please renew your license to get updates.</strong>';
+					} elseif (
+						! empty( $license_data['status'] )
+						&& 'suspended' === $license_data['status']
+					) {
+						$output .= '<strong>Your license has been suspended. Please contact support.</strong>';
+					} else {
+						$output .= '<strong>Unable to upgrade. Please contact support.</strong>';
+					}
+				}
+			} else {
+				$license_data  = get_option( $this->integration->license_name . '_data' );
+				$output       .= '<div>You are using the latest version of our plugin.</div>';
+
+				if (
+					! empty( $license_data['status'] )
+					&& 'expired' === $license_data['status']
+				) {
+					$output .= '<p style="color:red;">Your license has expired. Please renew your license to get new updates.</p>';
+				}
+			}
+
+			\printf(
+				'<div class="updated" style="padding:10px 20px;">%s</div>',
+				$output
+			);
+		}
+
+		/**
+		 * Render plugin details panel when no license code is set.
+		 *
+		 * @param array $details Plugin details from API response.
+		 * @return void
+		 */
+		private function render_details_without_license( $details ) {
+			$output = '';
+
+			if (
+				isset( $details['version'] ) &&
+				version_compare( $details['version'], $this->integration->product_version, '>' )
+			) {
+				$output .= $this->render_upgrade_info( $details );
+				$output .= '<strong>Please save your license to receive updates.</strong>';
+			} else {
+				$output .= '<div>You are using the latest version of our plugin.</div>';
+			}
+
+			\printf(
+				'<div class="updated" style="padding:10px 20px;">%s</div>',
+				$output
+			);
 		}
 	}
 
