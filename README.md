@@ -19,18 +19,15 @@ A comprehensive WordPress plugin updater library that enables automatic updates,
 
 ## Installation
 
-1. Copy the plugin updater files to your plugin directory
-2. Include the Integration class in your main plugin file
-3. Initialize the updater with your configuration
+```bash
+composer require shazzad/plugin-updater
+```
 
 ## Quick Start
 
 ```php
 <?php
-// Include the Integration class
-require_once plugin_dir_path( __FILE__ ) . 'updater/Integration.php';
-
-// Initialize the updater
+// Initialize the updater (autoloaded via Composer)
 new \Shazzad\PluginUpdater\Integration(
     'https://your-api-server.com/api',  // API URL
     plugin_basename( __FILE__ ),        // Plugin file path
