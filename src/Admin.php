@@ -82,7 +82,16 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 					$key      = sanitize_text_field( $_POST['wprepo_license'] );
 					$response = $this->integration->api_request( 'check_license', $key );
 
-					if ( ! empty( $response['license'] ) ) {
+					if ( is_wp_error( $response ) ) {
+						$message = $response->get_error_message();
+						wp_redirect(
+							add_query_arg(
+								'error',
+								urlencode( $message ),
+								$base_url
+							)
+						);
+					} elseif ( ! empty( $response['license'] ) ) {
 						update_option( $this->integration->get_license_option(), $key );
 						update_option(
 							$this->integration->license_name . '_data',
