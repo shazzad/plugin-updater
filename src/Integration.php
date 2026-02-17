@@ -18,7 +18,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 	/**
 	 * Class Integration
 	 *
-	 * Handles plugin update checks, license verification, and upgrade processes.
+	 * Main entry point for consumer plugins. Holds all shared state (API URL, product
+	 * info, license config) and provides API request and license/transient helpers.
 	 *
 	 * @since 1.0
 	 */
@@ -165,13 +166,13 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		}
 
 		/**
-		 * Retrieves the option name for storing the license key.
+		 * Retrieves the option key for storing the license code.
 		 *
 		 * @since 1.0
 		 *
 		 * @return string
 		 */
-		public function get_license_option() {
+		public function get_license_code_key() {
 			return "{$this->license_name}_code";
 		}
 
@@ -183,7 +184,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 * @return false|string License code or false if not found.
 		 */
 		public function get_license_code() {
-			return get_option( $this->get_license_option() );
+			return get_option( $this->get_license_code_key() );
 		}
 
 		/**
@@ -198,6 +199,40 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		}
 
 		/**
+		 * Retrieves the option key for storing license data.
+		 *
+		 * @since 1.0
+		 *
+		 * @return string
+		 */
+		public function get_license_data_key() {
+			return "{$this->license_name}_data";
+		}
+
+		/**
+		 * Gets the license data from the database.
+		 *
+		 * @since 1.0
+		 *
+		 * @return false|array License data or false if not found.
+		 */
+		public function get_license_data() {
+			return get_option( $this->get_license_data_key() );
+		}
+
+		/**
+		 * Updates the license data in the database.
+		 *
+		 * @since 1.0
+		 *
+		 * @param array $data License data to store.
+		 * @return bool True if the value was updated, false otherwise.
+		 */
+		public function update_license_data( $data ) {
+			return update_option( $this->get_license_data_key(), $data );
+		}
+
+		/**
 		 * Checks if the license is currently active.
 		 *
 		 * @since 1.0
@@ -205,7 +240,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 * @return bool True if license is active, false otherwise.
 		 */
 		public function is_license_active() {
-			$data = get_option( "{$this->license_name}_data" );
+			$data = $this->get_license_data();
 			if ( empty( $data ) ) {
 				return false;
 			}

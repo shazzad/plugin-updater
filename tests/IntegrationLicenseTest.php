@@ -6,21 +6,21 @@ use Brain\Monkey\Functions;
 class IntegrationLicenseTest extends TestCase {
 
 	/** @test */
-	public function get_license_option_returns_expected_key() {
+	public function get_license_code_key_returns_expected_key() {
 		$integration = $this->create_integration();
 
 		// license_name is sanitize_key( "my-plugin42" ) = "my-plugin42"
-		$this->assertSame( 'my-plugin42_code', $integration->get_license_option() );
+		$this->assertSame( 'my-plugin42_code', $integration->get_license_code_key() );
 	}
 
 	/** @test */
-	public function get_license_option_varies_by_product() {
+	public function get_license_code_key_varies_by_product() {
 		$integration = $this->create_integration( [
 			'product_file' => 'other-plugin/other-plugin.php',
 			'product_id'   => '99',
 		] );
 
-		$this->assertSame( 'other-plugin99_code', $integration->get_license_option() );
+		$this->assertSame( 'other-plugin99_code', $integration->get_license_code_key() );
 	}
 
 	/** @test */

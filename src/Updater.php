@@ -16,14 +16,28 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 	/**
 	 * Class Updater
 	 *
-	 * Handles plugin update checks, license verification, and upgrade processes.
+	 * Hooks into the WordPress update system to inject update data from the remote API.
 	 *
 	 * @since 1.0
 	 */
 	class Updater {
 
+		/**
+		 * Integration instance holding shared state and API helpers.
+		 *
+		 * @since 1.0
+		 *
+		 * @var Integration
+		 */
 		public Integration $integration;
 
+		/**
+		 * Constructor.
+		 *
+		 * @since 1.0
+		 *
+		 * @param Integration $integration Integration instance.
+		 */
 		public function __construct( Integration $integration ) {
 			$this->integration = $integration;
 

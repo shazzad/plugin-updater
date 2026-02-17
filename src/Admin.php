@@ -16,14 +16,28 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 	/**
 	 * Class Admin
 	 *
-	 * Handles plugin update checks, license verification, and upgrade processes.
+	 * Renders the license management admin page and handles license save/verify via POST.
 	 *
 	 * @since 1.0
 	 */
 	class Admin {
 
+		/**
+		 * Integration instance holding shared state and API helpers.
+		 *
+		 * @since 1.0
+		 *
+		 * @var Integration
+		 */
 		public Integration $integration;
 
+		/**
+		 * Constructor.
+		 *
+		 * @since 1.0
+		 *
+		 * @param Integration $integration Integration instance.
+		 */
 		public function __construct( Integration $integration ) {
 			$this->integration = $integration;
 
@@ -73,7 +87,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 			$base_url = remove_query_arg( [ 'm' ] );
 
 			if ( empty( $_POST['wprepo_license'] ) ) {
-				delete_option( $this->integration->get_license_option() );
+				delete_option( $this->integration->get_license_code_key() );
 				$this->integration->clear_updates_transient();
 				wp_redirect(
 					add_query_arg(
@@ -100,11 +114,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 			}
 
 			if ( ! empty( $response['license'] ) ) {
-				update_option( $this->integration->get_license_option(), $key );
-				update_option(
-					$this->integration->license_name . '_data',
-					$response['license']
-				);
+				update_option( $this->integration->get_license_code_key(), $key );
+				$this->integration->update_license_data( $response['license'] );
 
 				$this->integration->refresh_updates_transient();
 				wp_redirect(
@@ -202,6 +213,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 		/**
 		 * Render flash message or error notice from query parameters.
 		 *
+		 * @since 1.0
+		 *
 		 * @return void
 		 */
 		private function render_notices() {
@@ -220,6 +233,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 
 		/**
 		 * Render upgrade version heading, changelog, and upgrade notice.
+		 *
+		 * @since 1.0
 		 *
 		 * @param array $details Plugin details from API response.
 		 * @return string HTML output.
@@ -247,6 +262,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 
 		/**
 		 * Render plugin details panel when a license code is present.
+		 *
+		 * @since 1.0
 		 *
 		 * @param array $details Plugin details from API response.
 		 * @return void
@@ -277,7 +294,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 						$update_url
 					);
 				} else {
-					$license_data = get_option( $this->integration->license_name . '_data' );
+					$license_data = $this->integration->get_license_data();
 					if (
 						! empty( $license_data['status'] )
 						&& 'expired' === $license_data['status']
@@ -293,7 +310,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 					}
 				}
 			} else {
-				$license_data  = get_option( $this->integration->license_name . '_data' );
+				$license_data  = $this->integration->get_license_data();
 				$output       .= '<div>You are using the latest version of our plugin.</div>';
 
 				if (
@@ -312,6 +329,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 
 		/**
 		 * Render plugin details panel when no license code is set.
+		 *
+		 * @since 1.0
 		 *
 		 * @param array $details Plugin details from API response.
 		 * @return void
