@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! class_exists( 'Tracker' ) ) :
+if ( ! class_exists( __NAMESPACE__ . '\\Tracker' ) ) :
 
 	/**
 	 * Class Tracker

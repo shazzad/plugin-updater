@@ -1,0 +1,7 @@
+{
+  "code": "product_not_exists",
+  "message": "Requested product does not exists",
+  "data": {
+    "status": 404
+  }
+}

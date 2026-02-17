@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! class_exists( 'Updater' ) ) :
+if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 
 	/**
 	 * Class Updater
@@ -143,14 +143,16 @@ if ( ! class_exists( 'Updater' ) ) :
 					$return->sections = array(
 						'api_error' => ! empty( $response['message'] )
 							? $response['message']
-							: 'Errors occured. Try back later',
+							: 'Errors occurred. Try back later',
 					);
 				} else {
 					$details = $response['details'];
 
 					// Convert section content into array, apply paragraphs.
-					foreach ( $details['sections'] as $k => $s ) {
-						$details['sections'][ $k ] = wpautop( $s );
+					if ( ! empty( $details['sections'] ) && is_array( $details['sections'] ) ) {
+						foreach ( $details['sections'] as $k => $s ) {
+							$details['sections'][ $k ] = wpautop( $s );
+						}
 					}
 
 					$return = (object) $details;

@@ -1,0 +1,34 @@
+{
+  "details": {
+    "name": "My Plugin",
+    "slug": "my-plugin",
+    "version": "1.3.0",
+    "author": "<a href=\"https://example.com\">Author Name</a>",
+    "author_profile": "https://example.com",
+    "requires": "5.0",
+    "tested": "6.4",
+    "downloaded": 1250,
+    "last_updated": "2024-06-15 2:30pm GMT",
+    "added": "2023-01-10",
+    "homepage": "https://example.com/my-plugin",
+    "description": "Plugin description text.",
+    "download_link": "https://your-site.com/wp-json/wp-repo/v3/products/1/download?license=ABC-123-DEF",
+    "upgrade_notice_new": "Important security fix.",
+    "changelog_new": "- Fixed security issue\n- Improved performance",
+    "sections": {
+      "description": "Full HTML description.",
+      "faq": "FAQ HTML content.",
+      "upgrade_notice": "Upgrade notice HTML.",
+      "changelog": "<h4>Version: 1.3.0 - [2024-06-15]</h4>- Fixed issue<h4>Version: 1.2.0 - [2024-03-01]</h4>- Added feature"
+    },
+    "contributors": [],
+    "compatibility": [],
+    "banners": [],
+    "tags": [],
+    "ratings": [],
+    "rating": 100,
+    "num_ratings": 135,
+    "active_installs": 27,
+    "donate_link": ""
+  }
+}
