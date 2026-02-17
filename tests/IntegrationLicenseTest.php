@@ -130,4 +130,105 @@ class IntegrationLicenseTest extends TestCase {
 
 		$this->assertFalse( $integration->is_license_active() );
 	}
+
+	/** @test */
+	public function get_license_renewal_url_replaces_placeholders() {
+		$integration = $this->create_integration();
+
+		Functions\when( 'get_option' )->alias( function ( $key ) {
+			if ( 'my-plugin42_data' === $key ) {
+				return [
+					'renewal_url' => 'https://example.com/renew?license={license_code}&email={email}',
+					'email'       => 'user@example.com',
+				];
+			}
+			if ( 'my-plugin42_code' === $key ) {
+				return 'ABC-123-DEF';
+			}
+			return false;
+		} );
+
+		$this->assertSame(
+			'https://example.com/renew?license=ABC-123-DEF&email=user@example.com',
+			$integration->get_license_renewal_url()
+		);
+	}
+
+	/** @test */
+	public function get_license_renewal_url_returns_empty_when_no_url() {
+		$integration = $this->create_integration();
+
+		Functions\expect( 'get_option' )
+			->with( 'my-plugin42_data' )
+			->andReturn( [ 'status' => 'expired' ] );
+
+		$this->assertSame( '', $integration->get_license_renewal_url() );
+	}
+
+	/** @test */
+	public function get_license_renewal_url_handles_missing_email() {
+		$integration = $this->create_integration();
+
+		Functions\when( 'get_option' )->alias( function ( $key ) {
+			if ( 'my-plugin42_data' === $key ) {
+				return [
+					'renewal_url' => 'https://example.com/renew?license={license_code}&email={email}',
+				];
+			}
+			if ( 'my-plugin42_code' === $key ) {
+				return 'ABC-123-DEF';
+			}
+			return false;
+		} );
+
+		$this->assertSame(
+			'https://example.com/renew?license=ABC-123-DEF&email=',
+			$integration->get_license_renewal_url()
+		);
+	}
+
+	/** @test */
+	public function get_license_renewal_url_handles_missing_license_code() {
+		$integration = $this->create_integration();
+
+		Functions\when( 'get_option' )->alias( function ( $key ) {
+			if ( 'my-plugin42_data' === $key ) {
+				return [
+					'renewal_url' => 'https://example.com/renew?license={license_code}&email={email}',
+					'email'       => 'user@example.com',
+				];
+			}
+			if ( 'my-plugin42_code' === $key ) {
+				return false;
+			}
+			return false;
+		} );
+
+		$this->assertSame(
+			'https://example.com/renew?license=&email=user@example.com',
+			$integration->get_license_renewal_url()
+		);
+	}
+
+	/** @test */
+	public function get_license_renewal_url_returns_url_without_placeholders() {
+		$integration = $this->create_integration();
+
+		Functions\when( 'get_option' )->alias( function ( $key ) {
+			if ( 'my-plugin42_data' === $key ) {
+				return [
+					'renewal_url' => 'https://example.com/renew',
+				];
+			}
+			if ( 'my-plugin42_code' === $key ) {
+				return 'ABC-123-DEF';
+			}
+			return false;
+		} );
+
+		$this->assertSame(
+			'https://example.com/renew',
+			$integration->get_license_renewal_url()
+		);
+	}
 }

@@ -219,7 +219,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 				$args['type'] === 'plugin' &&
 				$args['action'] === 'update' &&
 				isset( $args['plugins'] ) &&
-				in_array( $this->integration->product_file, $args['plugins'] )
+				\in_array( $this->integration->product_file, $args['plugins'] )
 			) {
 				include_once ABSPATH . 'wp-admin/includes/plugin.php';
 				$plugin = get_plugin_data( WP_PLUGIN_DIR . '/' . $this->integration->product_file );

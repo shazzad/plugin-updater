@@ -294,30 +294,35 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 						$update_url
 					);
 				} else {
-					$license_data = $this->integration->get_license_data();
-					if (
-						! empty( $license_data['status'] )
-						&& 'expired' === $license_data['status']
-					) {
-						$output .= '<strong style="color:red;">Your license has expired. Please renew your license to get updates.</strong>';
-					} elseif (
-						! empty( $license_data['status'] )
-						&& 'suspended' === $license_data['status']
-					) {
+					if ( 'expired' === $this->integration->get_license_status() ) {
+						$renewal_url = $this->integration->get_license_renewal_url();
+						if ( $renewal_url ) {
+							$output .= \sprintf(
+								'<strong style="color:red;">Your license has expired. <a href="%s">Renew your license</a> to get updates.</strong>',
+								esc_url( $renewal_url )
+							);
+						} else {
+							$output .= '<strong style="color:red;">Your license has expired. Please renew your license to get updates.</strong>';
+						}
+					} elseif ( 'suspended' === $this->integration->get_license_status() ) {
 						$output .= '<strong>Your license has been suspended. Please contact support.</strong>';
 					} else {
 						$output .= '<strong>Unable to upgrade. Please contact support.</strong>';
 					}
 				}
 			} else {
-				$license_data  = $this->integration->get_license_data();
-				$output       .= '<div>You are using the latest version of our plugin.</div>';
+				$output .= '<div>You are using the latest version of our plugin.</div>';
 
-				if (
-					! empty( $license_data['status'] )
-					&& 'expired' === $license_data['status']
-				) {
-					$output .= '<p style="color:red;">Your license has expired. Please renew your license to get new updates.</p>';
+				if ( 'expired' === $this->integration->get_license_status() ) {
+					$renewal_url = $this->integration->get_license_renewal_url();
+					if ( $renewal_url ) {
+						$output .= \sprintf(
+							'<p style="color:red;">Your license has expired. <a href="%s">Renew your license</a> to get new updates.</p>',
+							esc_url( $renewal_url )
+						);
+					} else {
+						$output .= '<p style="color:red;">Your license has expired. Please renew your license to get new updates.</p>';
+					}
 				}
 			}
 

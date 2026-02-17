@@ -209,6 +209,48 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 			return "{$this->license_name}_data";
 		}
 
+
+		/**
+		 * Get license status.
+		 * 
+		 * @return string
+		 */
+		public function get_license_status() {
+			$data = $this->get_license_data();
+
+			if ( ! empty( $data['status'] ) ) {
+				return $data['status'];
+			}
+
+			return 'unknown';
+		}
+
+		/**
+		 * Get license renewal URL from stored license data.
+		 *
+		 * @since 1.0
+		 *
+		 * @return string Renewal URL or empty string if not available.
+		 */
+		public function get_license_renewal_url() {
+			$data = $this->get_license_data();
+
+			if ( empty( $data['renewal_url'] ) ) {
+				return '';
+			}
+
+			$url = str_replace(
+				[ '{license_code}', '{email}' ],
+				[
+					$this->get_license_code() ? $this->get_license_code() : '',
+					! empty( $data['email'] ) ? $data['email'] : '',
+				],
+				$data['renewal_url']
+			);
+
+			return $url;
+		}
+
 		/**
 		 * Gets the license data from the database.
 		 *
@@ -240,12 +282,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 * @return bool True if license is active, false otherwise.
 		 */
 		public function is_license_active() {
-			$data = $this->get_license_data();
-			if ( empty( $data ) ) {
-				return false;
-			}
-
-			if ( isset( $data['status'] ) && 'active' === $data['status'] ) {
+			if ( 'active' === $this->get_license_status() ) {
 				return true;
 			}
 
