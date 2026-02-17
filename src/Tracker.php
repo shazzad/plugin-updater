@@ -7,7 +7,7 @@
  */
 namespace Shazzad\PluginUpdater;
 
-if ( ! defined( 'ABSPATH' ) ) {
+if ( ! \defined( 'ABSPATH' ) ) {
 	exit;
 }
 
@@ -16,14 +16,28 @@ if ( ! class_exists( __NAMESPACE__ . '\\Tracker' ) ) :
 	/**
 	 * Class Tracker
 	 *
-	 * Handles plugin update checks, license verification, and upgrade processes.
+	 * Handles plugin activation/deactivation hooks and hourly cron license sync.
 	 *
 	 * @since 1.0
 	 */
 	class Tracker {
 
+		/**
+		 * Integration instance holding shared state and API helpers.
+		 *
+		 * @since 1.0
+		 *
+		 * @var Integration
+		 */
 		public Integration $integration;
 
+		/**
+		 * Constructor.
+		 *
+		 * @since 1.0
+		 *
+		 * @param Integration $integration Integration instance.
+		 */
 		public function __construct( Integration $integration ) {
 			$this->integration = $integration;
 
@@ -56,7 +70,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Tracker' ) ) :
 			}
 
 			if ( ! empty( $response['license'] ) ) {
-				update_option( $this->integration->license_name . '_data', $response['license'] );
+				$this->integration->update_license_data( $response['license'] );
 			}
 		}
 

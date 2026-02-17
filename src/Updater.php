@@ -7,7 +7,7 @@
  */
 namespace Shazzad\PluginUpdater;
 
-if ( ! defined( 'ABSPATH' ) ) {
+if ( ! \defined( 'ABSPATH' ) ) {
 	exit;
 }
 
@@ -16,14 +16,28 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 	/**
 	 * Class Updater
 	 *
-	 * Handles plugin update checks, license verification, and upgrade processes.
+	 * Hooks into the WordPress update system to inject update data from the remote API.
 	 *
 	 * @since 1.0
 	 */
 	class Updater {
 
+		/**
+		 * Integration instance holding shared state and API helpers.
+		 *
+		 * @since 1.0
+		 *
+		 * @var Integration
+		 */
 		public Integration $integration;
 
+		/**
+		 * Constructor.
+		 *
+		 * @since 1.0
+		 *
+		 * @param Integration $integration Integration instance.
+		 */
 		public function __construct( Integration $integration ) {
 			$this->integration = $integration;
 
@@ -205,7 +219,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 				$args['type'] === 'plugin' &&
 				$args['action'] === 'update' &&
 				isset( $args['plugins'] ) &&
-				in_array( $this->integration->product_file, $args['plugins'] )
+				\in_array( $this->integration->product_file, $args['plugins'] )
 			) {
 				include_once ABSPATH . 'wp-admin/includes/plugin.php';
 				$plugin = get_plugin_data( WP_PLUGIN_DIR . '/' . $this->integration->product_file );
