@@ -305,9 +305,23 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 							$output .= '<strong style="color:red;">Your license has expired. Please renew your license to get updates.</strong>';
 						}
 					} elseif ( 'suspended' === $this->integration->get_license_status() ) {
-						$output .= '<strong>Your license has been suspended. Please contact support.</strong>';
+						if ( ! empty( $details['homepage'] ) ) {
+							$output .= \sprintf(
+								'<strong>Your license has been suspended. Please <a href="%s">contact support</a>.</strong>',
+								esc_url( $details['homepage'] )
+							);
+						} else {
+							$output .= '<strong>Your license has been suspended. Please contact support.</strong>';
+						}
 					} else {
-						$output .= '<strong>Unable to upgrade. Please contact support.</strong>';
+						if ( ! empty( $details['homepage'] ) ) {
+							$output .= \sprintf(
+								'<strong>Upgrade package file missing, unable to upgrade. Please <a href="%s">contact support</a>.</strong>',
+								esc_url( $details['homepage'] )
+							);
+						} else {
+							$output .= '<strong>Upgrade package file missing, unable to upgrade. Please contact support.</strong>';
+						}
 					}
 				}
 			} else {
