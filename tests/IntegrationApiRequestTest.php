@@ -90,8 +90,8 @@ class IntegrationApiRequestTest extends TestCase {
 		$result = $integration->api_request( 'updates' );
 
 		$this->assertInstanceOf( WP_Error::class, $result );
-		$this->assertSame( 'product_not_exists', $result->get_error_code() );
-		$this->assertSame( 'Requested product does not exists', $result->get_error_message() );
+		$this->assertSame( 'plugin_not_exists', $result->get_error_code() );
+		$this->assertSame( 'Requested plugin does not exits on this provider', $result->get_error_message() );
 	}
 
 	/** @test */

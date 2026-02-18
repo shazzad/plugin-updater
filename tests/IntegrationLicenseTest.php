@@ -139,7 +139,7 @@ class IntegrationLicenseTest extends TestCase {
 			if ( 'my-plugin42_data' === $key ) {
 				return [
 					'renewal_url' => 'https://example.com/renew?license={license_code}&email={email}',
-					'email'       => 'user@example.com',
+					'buyer_email' => 'user@example.com',
 				];
 			}
 			if ( 'my-plugin42_code' === $key ) {
@@ -195,7 +195,7 @@ class IntegrationLicenseTest extends TestCase {
 			if ( 'my-plugin42_data' === $key ) {
 				return [
 					'renewal_url' => 'https://example.com/renew?license={license_code}&email={email}',
-					'email'       => 'user@example.com',
+					'buyer_email' => 'user@example.com',
 				];
 			}
 			if ( 'my-plugin42_code' === $key ) {

@@ -1,7 +1,7 @@
 {
-  "code": "product_not_exists",
-  "message": "Requested product does not exists",
-  "data": {
-    "status": 404
-  }
+	"code": "plugin_not_exists",
+	"message": "Requested plugin does not exits on this provider",
+	"data": {
+		"status": 404
+	}
 }
