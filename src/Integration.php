@@ -243,7 +243,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 				[ '{license_code}', '{email}' ],
 				[
 					$this->get_license_code() ? $this->get_license_code() : '',
-					! empty( $data['email'] ) ? $data['email'] : '',
+					! empty( $data['buyer_email'] ) ? $data['buyer_email'] : '',
 				],
 				$data['renewal_url']
 			);
