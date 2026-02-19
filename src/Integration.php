@@ -230,12 +230,21 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 *
 		 * @since 1.0
 		 *
+		 * @param array $details Optional. Plugin details from the API, used as fallback source for renewal_url.
 		 * @return string Renewal URL or empty string if not available.
 		 */
-		public function get_license_renewal_url() {
+		public function get_license_renewal_url( $details = [] ) {
 			$data = $this->get_license_data();
 
-			if ( empty( $data['renewal_url'] ) ) {
+			// License data takes priority, then details fallback.
+			$renewal_url = '';
+			if ( ! empty( $data['renewal_url'] ) ) {
+				$renewal_url = $data['renewal_url'];
+			} elseif ( ! empty( $details['renewal_url'] ) ) {
+				$renewal_url = $details['renewal_url'];
+			}
+
+			if ( empty( $renewal_url ) ) {
 				return '';
 			}
 
@@ -245,7 +254,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 					$this->get_license_code() ? $this->get_license_code() : '',
 					! empty( $data['buyer_email'] ) ? $data['buyer_email'] : '',
 				],
-				$data['renewal_url']
+				$renewal_url
 			);
 
 			return $url;

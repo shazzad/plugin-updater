@@ -137,7 +137,8 @@ GET /products/{product_id}/details
       "changelog": "Version history",
       "installation": "Installation instructions"
     },
-    "download_link": "https://download-url.com/plugin.zip"
+    "download_link": "https://download-url.com/plugin.zip",
+    "renewal_url": "https://example.com/renew?license={license_code}&email={email}"
   }
 }
 ```
@@ -156,10 +157,18 @@ GET /products/{product_id}/check_license?license=LICENSE_KEY
     "status": "active",
     "expires": "2024-12-31",
     "customer_name": "John Doe",
-    "customer_email": "john@example.com"
+    "customer_email": "john@example.com",
+    "renewal_url": "https://example.com/renew?license={license_code}&email={email}"
   }
 }
 ```
+
+The `renewal_url` field is optional and can be provided in either the license verification response or the plugin details response. The license data value takes priority; the details response acts as a fallback. When present and the license status is `expired`, a renewal link is displayed on the admin license page. The URL supports two placeholders that are replaced automatically:
+
+- `{license_code}` — replaced with the stored license key
+- `{email}` — replaced with the `buyer_email` from the license data
+
+A static URL without placeholders (e.g., `https://example.com/renew`) is also supported.
 
 ### Ping Endpoint
 
