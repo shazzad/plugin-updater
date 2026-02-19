@@ -295,7 +295,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 					);
 				} else {
 					if ( 'expired' === $this->integration->get_license_status() ) {
-						$renewal_url = $this->integration->get_license_renewal_url( $details );
+						$renewal_url = $this->integration->get_license_renewal_url();
 						if ( $renewal_url ) {
 							$output .= \sprintf(
 								'<strong style="color:red;">Your license has expired. <a href="%s">Renew your license</a> to get updates.</strong>',
@@ -328,7 +328,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 				$output .= '<div>You are using the latest version of our plugin.</div>';
 
 				if ( 'expired' === $this->integration->get_license_status() ) {
-					$renewal_url = $this->integration->get_license_renewal_url( $details );
+					$renewal_url = $this->integration->get_license_renewal_url();
 					if ( $renewal_url ) {
 						$output .= \sprintf(
 							'<p style="color:red;">Your license has expired. <a href="%s">Renew your license</a> to get new updates.</p>',
