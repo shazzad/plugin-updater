@@ -137,8 +137,7 @@ GET /products/{product_id}/details
       "changelog": "Version history",
       "installation": "Installation instructions"
     },
-    "download_link": "https://download-url.com/plugin.zip",
-    "renewal_url": "https://example.com/renew?license={license_code}&email={email}"
+    "download_link": "https://download-url.com/plugin.zip"
   }
 }
 ```
@@ -163,7 +162,7 @@ GET /products/{product_id}/check_license?license=LICENSE_KEY
 }
 ```
 
-The `renewal_url` field is optional and can be provided in either the license verification response or the plugin details response. The license data value takes priority; the details response acts as a fallback. When present and the license status is `expired`, a renewal link is displayed on the admin license page. The URL supports two placeholders that are replaced automatically:
+The `renewal_url` field is optional in the license verification response. When present and the license status is `expired`, a renewal link is displayed on the admin license page. The URL supports two placeholders that are replaced automatically:
 
 - `{license_code}` — replaced with the stored license key
 - `{email}` — replaced with the `buyer_email` from the license data
