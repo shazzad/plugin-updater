@@ -231,4 +231,5 @@ class IntegrationLicenseTest extends TestCase {
 			$integration->get_license_renewal_url()
 		);
 	}
+
 }
