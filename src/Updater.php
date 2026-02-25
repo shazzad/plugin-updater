@@ -63,7 +63,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 			$this->integration->product_version = $plugin['Version'];
 			$this->integration->product_name    = $plugin['Name'];
 
-			// Schedule a cron job to update license hourly.
+			// Schedule a cron job to refresh license data hourly.
 			$hook_name = "wprepo_sync_license_data_{$this->integration->license_name}";
 
 			if ( ! wp_next_scheduled( $hook_name ) ) {

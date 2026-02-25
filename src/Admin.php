@@ -78,10 +78,87 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 		 * @return void
 		 */
 		public function load_page() {
+			if ( isset( $_POST['wprepo_sync'] ) ) {
+				$this->handle_sync();
+				return;
+			}
+
 			if ( ! isset( $_POST['wprepo_update'] ) ) {
 				return;
 			}
 
+			$this->handle_save();
+		}
+
+		/**
+		 * Handle syncing/refreshing the existing license data.
+		 *
+		 * @since 1.1
+		 * @return void
+		 */
+		private function handle_sync() {
+			check_admin_referer( 'wprepo_license_update' );
+
+			$base_url = remove_query_arg( [ 'm' ] );
+			$key      = $this->integration->get_license_code();
+
+			if ( empty( $key ) ) {
+				wp_redirect(
+					add_query_arg(
+						'error',
+						urlencode( 'No license key to sync' ),
+						$base_url
+					)
+				);
+				exit;
+			}
+
+			$response = $this->integration->api_request( 'check_license', $key );
+
+			if ( is_wp_error( $response ) ) {
+				wp_redirect(
+					add_query_arg(
+						'error',
+						urlencode( $response->get_error_message() ),
+						$base_url
+					)
+				);
+				exit;
+			}
+
+			if ( ! empty( $response['license'] ) ) {
+				$this->integration->update_license_data( $response['license'] );
+				$this->integration->refresh_updates_transient();
+				wp_redirect(
+					add_query_arg(
+						'message',
+						urlencode( 'License data synced' ),
+						$base_url
+					)
+				);
+				exit;
+			}
+
+			$message = ! empty( $response['message'] )
+				? $response['message']
+				: 'Unable to sync license data';
+			wp_redirect(
+				add_query_arg(
+					'error',
+					urlencode( $message ),
+					$base_url
+				)
+			);
+			exit;
+		}
+
+		/**
+		 * Handle saving/updating the license key.
+		 *
+		 * @since 1.1
+		 * @return void
+		 */
+		private function handle_save() {
 			check_admin_referer( 'wprepo_license_update' );
 
 			$base_url = remove_query_arg( [ 'm' ] );
@@ -179,6 +256,14 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 										aria-describedby="wprepo_license-description"
 										value="<?php echo esc_attr( $this->integration->get_license_code() ); ?>"
 										class="regular-text" />
+									<?php if ( $this->integration->has_license_code() ) : ?>
+										<button type="submit" name="wprepo_sync" value="1"
+											class="button button-secondary" title="<?php esc_attr_e( 'Sync license data' ); ?>"
+											style="vertical-align: baseline;">
+											<span class="dashicons dashicons-update" style="vertical-align: text-bottom;"></span>
+											<?php _e( 'Sync' ); ?>
+										</button>
+									<?php endif; ?>
 									<p class="description" id="wprepo_license-description">
 										Enter your License Key to receive automatic Updates
 									</p>
