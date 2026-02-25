@@ -59,12 +59,12 @@ if ( ! class_exists( __NAMESPACE__ . '\\Tracker' ) ) :
 			$license = $this->integration->get_license_code();
 			if ( empty( $license ) ) {
 				// do ping to notify the installation.
-				$this->integration->api_request( 'ping' );
+				$this->integration->client->ping();
 
 				return;
 			}
 
-			$response = $this->integration->api_request( 'check_license' );
+			$response = $this->integration->client->check_license();
 			if ( is_wp_error( $response ) ) {
 				return;
 			}
@@ -83,7 +83,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Tracker' ) ) :
 		public function product_activated() {
 			$this->integration->product_status = 'active';
 			$this->integration->clear_updates_transient();
-			$this->integration->api_request( 'ping' );
+			$this->integration->client->ping();
 		}
 
 		/**
@@ -95,7 +95,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Tracker' ) ) :
 		public function product_deactivated() {
 			$this->integration->product_status = 'inactive';
 			$this->integration->clear_updates_transient();
-			$this->integration->api_request( 'ping' );
+			$this->integration->client->ping();
 		}
 	}
 

@@ -81,7 +81,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 		 */
 		public function pre_set_transient( $transient ) {
 			if ( property_exists( $transient, 'checked' ) && ! empty( $transient->checked ) ) {
-				$response = $this->integration->api_request( 'updates' );
+				$response = $this->integration->client->updates();
 
 				if ( ! is_wp_error( $response ) && ! empty( $response['updates'] ) ) {
 					$updates = $response['updates'];
@@ -142,7 +142,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 			}
 
 			if ( ! empty( $arg ) && isset( $arg->slug ) && $arg->slug === $this->integration->product_slug ) {
-				$response = $this->integration->api_request( 'details' );
+				$response = $this->integration->client->details();
 
 				if ( is_wp_error( $response ) ) {
 					$return           = new \stdClass();
@@ -227,7 +227,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 				$this->integration->clear_updates_transient();
 
 				$this->integration->product_version = $plugin['Version'];
-				$this->integration->api_request( 'ping' );
+				$this->integration->client->ping();
 			}
 		}
 	}

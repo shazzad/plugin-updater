@@ -7,8 +7,6 @@
  */
 namespace Shazzad\PluginUpdater;
 
-use WP_Error;
-
 if ( ! \defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -117,6 +115,42 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		public $license_enabled;
 
 		/**
+		 * API client instance.
+		 *
+		 * @since 1.1
+		 *
+		 * @var Client
+		 */
+		public $client;
+
+		/**
+		 * Updater instance.
+		 *
+		 * @since 1.1
+		 *
+		 * @var Updater
+		 */
+		public $updater;
+
+		/**
+		 * Tracker instance.
+		 *
+		 * @since 1.1
+		 *
+		 * @var Tracker
+		 */
+		public $tracker;
+
+		/**
+		 * Admin instance.
+		 *
+		 * @since 1.1
+		 *
+		 * @var Admin|null
+		 */
+		public $admin;
+
+		/**
 		 * Constructor.
 		 *
 		 * @param string $api_url          URL of the API server.
@@ -157,11 +191,12 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 
 			$this->license_name = sanitize_key( "{$this->product_slug}{$this->product_id}" );
 
-			new Updater( $this );
-			new Tracker( $this );
+			$this->client  = new Client( $this );
+			$this->updater = new Updater( $this );
+			$this->tracker = new Tracker( $this );
 
 			if ( $this->display_menu ) {
-				new Admin( $this );
+				$this->admin = new Admin( $this );
 			}
 		}
 
@@ -335,72 +370,6 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 			}
 
 			set_site_transient( 'update_plugins', $transient );
-		}
-
-		/**
-		 * Sends API request to the remote server.
-		 *
-		 * @since 1.0
-		 *
-		 * @param string $method  The API endpoint method (e.g., 'ping', 'updates').
-		 * @param string $license (Optional) License key to check or validate.
-		 * @return array|WP_Error Response data from the API or WP_Error on failure.
-		 */
-		public function api_request( $method, $license = '' ) {
-			$request_url = "{$this->api_url}/products/{$this->product_id}/$method";
-
-			$args = [
-				'product_version' => $this->product_version,
-				'product_status'  => $this->product_status,
-				'wp_url'          => esc_url( site_url( '', 'https' ) ),
-				'wp_locale'       => get_locale(),
-				'wp_version'      => get_bloginfo( 'version', 'display' ),
-			];
-
-			if ( $this->license_enabled ) {
-				if ( ! $license ) {
-					$license = $this->get_license_code();
-				}
-				if ( $license ) {
-					$args['license'] = $license;
-				}
-			}
-
-			$request_url = add_query_arg( $args, $request_url );
-
-			$timeout = 5;
-			if ( 'ping' === $method ) {
-				$timeout = 2;
-			}
-
-			$request = wp_remote_request(
-				$request_url,
-				[ 'timeout' => $timeout ]
-			);
-
-			if ( is_wp_error( $request ) ) {
-				return $request;
-			}
-
-			$status_code = wp_remote_retrieve_response_code( $request );
-			$body        = wp_remote_retrieve_body( $request );
-			$body        = json_decode( $body, true );
-
-			if ( empty( $body ) ) {
-				return new WP_Error(
-					'wprepo_api_fail',
-					'No response from update server'
-				);
-			}
-
-			if ( $status_code >= 400 ) {
-				return new WP_Error(
-					! empty( $body['code'] ) ? $body['code'] : 'wprepo_api_error',
-					! empty( $body['message'] ) ? $body['message'] : 'API request failed'
-				);
-			}
-
-			return $body;
 		}
 
 	}

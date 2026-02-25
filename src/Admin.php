@@ -113,7 +113,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 				exit;
 			}
 
-			$response = $this->integration->api_request( 'check_license', $key );
+			$response = $this->integration->client->check_license( $key );
 
 			if ( is_wp_error( $response ) ) {
 				wp_redirect(
@@ -177,7 +177,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 			}
 
 			$key      = sanitize_text_field( $_POST['wprepo_license'] );
-			$response = $this->integration->api_request( 'check_license', $key );
+			$response = $this->integration->client->check_license( $key );
 
 			if ( is_wp_error( $response ) ) {
 				wp_redirect(
@@ -278,7 +278,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 				</form>
 
 				<?php
-				$response = $this->integration->api_request( 'details' );
+				$response = $this->integration->client->details();
 
 				if ( is_wp_error( $response ) ) {
 					\printf(
