@@ -66,6 +66,11 @@ if ( ! class_exists( __NAMESPACE__ . '\\Tracker' ) ) :
 
 			$response = $this->integration->client->check_license();
 			if ( is_wp_error( $response ) ) {
+				if ( 'invalid_license' === $response->get_error_code() ) {
+					$this->integration->delete_license_code();
+					$this->integration->delete_license_data();
+				}
+
 				return;
 			}
 

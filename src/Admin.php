@@ -116,6 +116,11 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 			$response = $this->integration->client->check_license( $key );
 
 			if ( is_wp_error( $response ) ) {
+				if ( 'invalid_license' === $response->get_error_code() ) {
+					$this->integration->delete_license_code();
+					$this->integration->delete_license_data();
+				}
+
 				wp_redirect(
 					add_query_arg(
 						'error',
@@ -164,7 +169,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 			$base_url = remove_query_arg( [ 'm' ] );
 
 			if ( empty( $_POST['wprepo_license'] ) ) {
-				delete_option( $this->integration->get_license_code_key() );
+				$this->integration->delete_license_code();
 				$this->integration->clear_updates_transient();
 				wp_redirect(
 					add_query_arg(
@@ -180,6 +185,11 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 			$response = $this->integration->client->check_license( $key );
 
 			if ( is_wp_error( $response ) ) {
+				if ( 'invalid_license' === $response->get_error_code() ) {
+					$this->integration->delete_license_code();
+					$this->integration->delete_license_data();
+				}
+
 				wp_redirect(
 					add_query_arg(
 						'error',
