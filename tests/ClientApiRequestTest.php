@@ -4,10 +4,10 @@ namespace Shazzad\PluginUpdater\Tests;
 use Brain\Monkey\Functions;
 use WP_Error;
 
-class IntegrationApiRequestTest extends TestCase {
+class ClientApiRequestTest extends TestCase {
 
 	/**
-	 * Stub the common WP functions used by api_request().
+	 * Stub the common WP functions used by Client::request().
 	 */
 	private function stub_api_dependencies(): void {
 		Functions\when( 'esc_url' )->returnArg();
@@ -20,7 +20,7 @@ class IntegrationApiRequestTest extends TestCase {
 	}
 
 	/** @test */
-	public function success_returns_parsed_body() {
+	public function ping_returns_parsed_body() {
 		$integration = $this->create_integration();
 		$this->stub_api_dependencies();
 
@@ -38,7 +38,7 @@ class IntegrationApiRequestTest extends TestCase {
 			->once()
 			->andReturn( $fixture );
 
-		$result = $integration->api_request( 'ping' );
+		$result = $integration->client->ping();
 
 		$this->assertIsArray( $result );
 		$this->assertSame( 'Ping successful', $result['message'] );
@@ -55,7 +55,7 @@ class IntegrationApiRequestTest extends TestCase {
 			->once()
 			->andReturn( $error );
 
-		$result = $integration->api_request( 'ping' );
+		$result = $integration->client->ping();
 
 		$this->assertInstanceOf( WP_Error::class, $result );
 		$this->assertSame( 'http_error', $result->get_error_code() );
@@ -70,7 +70,7 @@ class IntegrationApiRequestTest extends TestCase {
 		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
 		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( '' );
 
-		$result = $integration->api_request( 'updates' );
+		$result = $integration->client->updates();
 
 		$this->assertInstanceOf( WP_Error::class, $result );
 		$this->assertSame( 'wprepo_api_fail', $result->get_error_code() );
@@ -87,7 +87,7 @@ class IntegrationApiRequestTest extends TestCase {
 		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 404 );
 		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
 
-		$result = $integration->api_request( 'updates' );
+		$result = $integration->client->updates();
 
 		$this->assertInstanceOf( WP_Error::class, $result );
 		$this->assertSame( 'plugin_not_exists', $result->get_error_code() );
@@ -105,7 +105,7 @@ class IntegrationApiRequestTest extends TestCase {
 		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 500 );
 		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $body );
 
-		$result = $integration->api_request( 'updates' );
+		$result = $integration->client->updates();
 
 		$this->assertInstanceOf( WP_Error::class, $result );
 		$this->assertSame( 'wprepo_api_error', $result->get_error_code() );
@@ -123,7 +123,7 @@ class IntegrationApiRequestTest extends TestCase {
 		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 400 );
 		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $body );
 
-		$result = $integration->api_request( 'updates' );
+		$result = $integration->client->updates();
 
 		$this->assertInstanceOf( WP_Error::class, $result );
 		$this->assertSame( 'wprepo_api_error', $result->get_error_code() );
@@ -131,7 +131,7 @@ class IntegrationApiRequestTest extends TestCase {
 	}
 
 	/** @test */
-	public function license_included_when_enabled() {
+	public function license_included_in_updates_when_enabled() {
 		$integration = $this->create_integration( [ 'license_enabled' => true ] );
 		$this->stub_api_dependencies();
 
@@ -154,7 +154,7 @@ class IntegrationApiRequestTest extends TestCase {
 		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
 		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
 
-		$integration->api_request( 'ping' );
+		$integration->client->updates();
 
 		$this->assertStringContainsString( 'license=MY-LICENSE-KEY', $captured_url );
 	}
@@ -178,7 +178,7 @@ class IntegrationApiRequestTest extends TestCase {
 		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
 		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
 
-		$integration->api_request( 'ping', 'EXPLICIT-KEY' );
+		$integration->client->check_license( 'EXPLICIT-KEY' );
 
 		$this->assertStringContainsString( 'license=EXPLICIT-KEY', $captured_url );
 		$this->assertStringNotContainsString( 'stored-key', $captured_url );
@@ -189,13 +189,18 @@ class IntegrationApiRequestTest extends TestCase {
 		$integration = $this->create_integration();
 		$this->stub_api_dependencies();
 
+		Functions\expect( 'get_option' )
+			->once()
+			->with( 'my-plugin42_code' )
+			->andReturn( false );
+
 		$fixture = $this->load_fixture_raw( 'check-license-success.json' );
 
 		Functions\expect( 'wp_remote_request' )->once()->andReturn( [] );
 		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
 		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
 
-		$result = $integration->api_request( 'check_license' );
+		$result = $integration->client->check_license();
 
 		$this->assertIsArray( $result );
 		$this->assertSame( 'active', $result['license']['status'] );
@@ -212,9 +217,26 @@ class IntegrationApiRequestTest extends TestCase {
 		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
 		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
 
-		$result = $integration->api_request( 'updates' );
+		$result = $integration->client->updates();
 
 		$this->assertIsArray( $result );
 		$this->assertSame( '1.3.0', $result['updates']['new_version'] );
+	}
+
+	/** @test */
+	public function details_returns_plugin_details() {
+		$integration = $this->create_integration();
+		$this->stub_api_dependencies();
+
+		$fixture = $this->load_fixture_raw( 'details-success.json' );
+
+		Functions\expect( 'wp_remote_request' )->once()->andReturn( [] );
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+		$result = $integration->client->details();
+
+		$this->assertIsArray( $result );
+		$this->assertArrayHasKey( 'details', $result );
 	}
 }
