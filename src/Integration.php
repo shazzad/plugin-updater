@@ -310,6 +310,28 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		}
 
 		/**
+		 * Deletes the license code from the database.
+		 *
+		 * @since 1.2
+		 *
+		 * @return bool True if the option was deleted, false otherwise.
+		 */
+		public function delete_license_code() {
+			return delete_option( $this->get_license_code_key() );
+		}
+
+		/**
+		 * Deletes the license data from the database.
+		 *
+		 * @since 1.2
+		 *
+		 * @return bool True if the option was deleted, false otherwise.
+		 */
+		public function delete_license_data() {
+			return delete_option( $this->get_license_data_key() );
+		}
+
+		/**
 		 * Checks if the license is currently active.
 		 *
 		 * @since 1.0

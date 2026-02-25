@@ -211,6 +211,30 @@ class IntegrationLicenseTest extends TestCase {
 	}
 
 	/** @test */
+	public function delete_license_code_calls_delete_option() {
+		$integration = $this->create_integration();
+
+		Functions\expect( 'delete_option' )
+			->once()
+			->with( 'my-plugin42_code' )
+			->andReturn( true );
+
+		$this->assertTrue( $integration->delete_license_code() );
+	}
+
+	/** @test */
+	public function delete_license_data_calls_delete_option() {
+		$integration = $this->create_integration();
+
+		Functions\expect( 'delete_option' )
+			->once()
+			->with( 'my-plugin42_data' )
+			->andReturn( true );
+
+		$this->assertTrue( $integration->delete_license_data() );
+	}
+
+	/** @test */
 	public function get_license_renewal_url_returns_url_without_placeholders() {
 		$integration = $this->create_integration();
 
