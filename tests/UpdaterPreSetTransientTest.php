@@ -8,7 +8,7 @@ use WP_Error;
 class UpdaterPreSetTransientTest extends TestCase {
 
 	/**
-	 * Helper: stub the WP functions used by api_request() inside pre_set_transient().
+	 * Helper: stub the WP functions used by Client::request() inside pre_set_transient().
 	 */
 	private function stub_api_dependencies(): void {
 		Functions\when( 'esc_url' )->returnArg();
@@ -43,12 +43,7 @@ class UpdaterPreSetTransientTest extends TestCase {
 			Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
 		}
 
-		// Return the existing Updater created by Integration constructor.
-		// We need to access it — but Integration doesn't store a reference.
-		// Create a new Updater instance directly.
-		$updater = new Updater( $integration );
-
-		return $updater;
+		return $integration->updater;
 	}
 
 	/**
@@ -66,12 +61,11 @@ class UpdaterPreSetTransientTest extends TestCase {
 	/** @test */
 	public function returns_unmodified_when_checked_is_empty() {
 		$integration = $this->create_integration();
-		$updater     = new Updater( $integration );
 
 		$transient          = new \stdClass();
 		$transient->checked = [];
 
-		$result = $updater->pre_set_transient( $transient );
+		$result = $integration->updater->pre_set_transient( $transient );
 
 		$this->assertSame( $transient, $result );
 		$this->assertEmpty( $transient->checked );
@@ -80,11 +74,10 @@ class UpdaterPreSetTransientTest extends TestCase {
 	/** @test */
 	public function returns_unmodified_when_checked_is_missing() {
 		$integration = $this->create_integration();
-		$updater     = new Updater( $integration );
 
 		$transient = new \stdClass();
 
-		$result = $updater->pre_set_transient( $transient );
+		$result = $integration->updater->pre_set_transient( $transient );
 
 		$this->assertSame( $transient, $result );
 	}
@@ -115,10 +108,9 @@ class UpdaterPreSetTransientTest extends TestCase {
 		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
 		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
 
-		$updater   = new Updater( $integration );
 		$transient = $this->make_transient();
 
-		$result = $updater->pre_set_transient( $transient );
+		$result = $integration->updater->pre_set_transient( $transient );
 
 		$this->assertArrayNotHasKey( 'my-plugin/my-plugin.php', $result->response );
 		$this->assertArrayHasKey( 'my-plugin/my-plugin.php', $result->no_update );
@@ -136,10 +128,9 @@ class UpdaterPreSetTransientTest extends TestCase {
 		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
 		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
 
-		$updater   = new Updater( $integration );
 		$transient = $this->make_transient();
 
-		$result = $updater->pre_set_transient( $transient );
+		$result = $integration->updater->pre_set_transient( $transient );
 
 		$this->assertArrayNotHasKey( 'my-plugin/my-plugin.php', $result->response );
 		$this->assertArrayHasKey( 'my-plugin/my-plugin.php', $result->no_update );
@@ -157,14 +148,12 @@ class UpdaterPreSetTransientTest extends TestCase {
 		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
 		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
 
-		$updater = new Updater( $integration );
-
 		$old_entry = (object) [ 'new_version' => '1.2.0', 'slug' => 'my-plugin' ];
 
 		$transient           = $this->make_transient();
 		$transient->response = [ 'my-plugin/my-plugin.php' => $old_entry ];
 
-		$result = $updater->pre_set_transient( $transient );
+		$result = $integration->updater->pre_set_transient( $transient );
 
 		$this->assertArrayNotHasKey( 'my-plugin/my-plugin.php', $result->response );
 		$this->assertArrayHasKey( 'my-plugin/my-plugin.php', $result->no_update );

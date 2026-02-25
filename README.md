@@ -43,8 +43,9 @@ new \Shazzad\PluginUpdater\Integration(
 ## File Structure
 
 ```
-/updater/
-├── Integration.php    # Core functionality and API handling
+/src/
+├── Integration.php    # Core state, license helpers, and subsystem wiring
+├── Client.php        # API client with typed methods (ping, check_license, updates, details)
 ├── Updater.php       # Update checks and WordPress integration
 ├── Admin.php         # WordPress admin interface
 └── Tracker.php       # Plugin tracking and license sync
@@ -247,15 +248,6 @@ The updater includes comprehensive error handling:
 - Malformed responses
 
 Errors are logged and displayed appropriately in the WordPress admin.
-
-## Debugging
-
-Enable debugging with the included helper method:
-
-```php
-$integration = new \Shazzad\PluginUpdater\Integration(/* ... */);
-$integration->p($some_data); // Pretty print data
-```
 
 ## Changelog
 
