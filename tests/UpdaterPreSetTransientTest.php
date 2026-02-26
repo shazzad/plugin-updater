@@ -23,6 +23,9 @@ class UpdaterPreSetTransientTest extends TestCase {
 	/**
 	 * Helper: create an Updater with its Integration and stub an API response.
 	 *
+	 * Stubs cache as a miss (get_site_transient returns false) so the API call
+	 * proceeds, and accepts the set_site_transient call to store the cache.
+	 *
 	 * @param string|null $fixture_name Fixture file name or null for WP_Error.
 	 * @param int         $status_code  HTTP status code.
 	 * @return Updater
@@ -30,6 +33,9 @@ class UpdaterPreSetTransientTest extends TestCase {
 	private function create_updater_with_api_response( ?string $fixture_name, int $status_code = 200 ): Updater {
 		$integration = $this->create_integration();
 		$this->stub_api_dependencies();
+
+		Functions\when( 'get_site_transient' )->justReturn( false );
+		Functions\when( 'set_site_transient' )->justReturn( true );
 
 		if ( null === $fixture_name ) {
 			Functions\expect( 'wp_remote_request' )
@@ -102,6 +108,9 @@ class UpdaterPreSetTransientTest extends TestCase {
 		$integration->product_version = '1.3.0'; // Same as fixture.
 		$this->stub_api_dependencies();
 
+		Functions\when( 'get_site_transient' )->justReturn( false );
+		Functions\when( 'set_site_transient' )->justReturn( true );
+
 		$fixture = $this->load_fixture_raw( 'updates-available.json' );
 
 		Functions\expect( 'wp_remote_request' )->once()->andReturn( [] );
@@ -122,6 +131,9 @@ class UpdaterPreSetTransientTest extends TestCase {
 		$integration->product_version = '2.0.0'; // Higher than fixture's 1.3.0.
 		$this->stub_api_dependencies();
 
+		Functions\when( 'get_site_transient' )->justReturn( false );
+		Functions\when( 'set_site_transient' )->justReturn( true );
+
 		$fixture = $this->load_fixture_raw( 'updates-available.json' );
 
 		Functions\expect( 'wp_remote_request' )->once()->andReturn( [] );
@@ -141,6 +153,9 @@ class UpdaterPreSetTransientTest extends TestCase {
 		$integration = $this->create_integration();
 		$integration->product_version = '1.3.0'; // Same as fixture.
 		$this->stub_api_dependencies();
+
+		Functions\when( 'get_site_transient' )->justReturn( false );
+		Functions\when( 'set_site_transient' )->justReturn( true );
 
 		$fixture = $this->load_fixture_raw( 'updates-available.json' );
 
@@ -181,4 +196,5 @@ class UpdaterPreSetTransientTest extends TestCase {
 		$this->assertEmpty( $result->response );
 		$this->assertEmpty( $result->no_update );
 	}
+
 }

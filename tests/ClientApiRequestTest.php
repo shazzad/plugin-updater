@@ -7,9 +7,24 @@ use WP_Error;
 class ClientApiRequestTest extends TestCase {
 
 	/**
-	 * Stub the common WP functions used by Client::request().
+	 * Stub the common WP functions used by Client::request() and updates() cache.
 	 */
 	private function stub_api_dependencies(): void {
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'site_url' )->justReturn( 'https://example.com' );
+		Functions\when( 'get_locale' )->justReturn( 'en_US' );
+		Functions\when( 'get_bloginfo' )->justReturn( '6.4' );
+		Functions\when( 'add_query_arg' )->alias( function ( $args, $url ) {
+			return $url . '?' . http_build_query( $args );
+		} );
+		Functions\when( 'get_site_transient' )->justReturn( false );
+		Functions\when( 'set_site_transient' )->justReturn( true );
+	}
+
+	/**
+	 * Stub only the HTTP-layer WP functions (no cache stubs).
+	 */
+	private function stub_http_dependencies(): void {
 		Functions\when( 'esc_url' )->returnArg();
 		Functions\when( 'site_url' )->justReturn( 'https://example.com' );
 		Functions\when( 'get_locale' )->justReturn( 'en_US' );
@@ -238,5 +253,133 @@ class ClientApiRequestTest extends TestCase {
 
 		$this->assertIsArray( $result );
 		$this->assertArrayHasKey( 'details', $result );
+	}
+
+	/** @test */
+	public function updates_returns_cached_response_without_api_call() {
+		$integration = $this->create_integration();
+
+		$cached_response = $this->load_fixture( 'updates-available.json' );
+
+		Functions\expect( 'get_site_transient' )
+			->once()
+			->with( $integration->get_updates_cache_key() )
+			->andReturn( $cached_response );
+
+		Functions\expect( 'wp_remote_request' )->never();
+
+		$result = $integration->client->updates();
+
+		$this->assertIsArray( $result );
+		$this->assertSame( '1.3.0', $result['updates']['new_version'] );
+	}
+
+	/** @test */
+	public function updates_caches_successful_api_response() {
+		$integration = $this->create_integration();
+		$this->stub_http_dependencies();
+
+		$fixture   = $this->load_fixture_raw( 'updates-available.json' );
+		$cache_key = $integration->get_updates_cache_key();
+
+		$stored = null;
+
+		Functions\expect( 'get_site_transient' )
+			->once()
+			->with( $cache_key )
+			->andReturn( false );
+
+		Functions\expect( 'wp_remote_request' )->once()->andReturn( [] );
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+		Functions\expect( 'set_site_transient' )
+			->once()
+			->with(
+				$cache_key,
+				\Mockery::on( function ( $value ) use ( &$stored ) {
+					$stored = $value;
+					return is_array( $value ) && ! empty( $value['updates'] );
+				} ),
+				600
+			)
+			->andReturn( true );
+
+		$result = $integration->client->updates();
+
+		$this->assertIsArray( $result );
+		$this->assertNotNull( $stored );
+		$this->assertArrayHasKey( 'updates', $stored );
+	}
+
+	/** @test */
+	public function updates_does_not_cache_wp_error_response() {
+		$integration = $this->create_integration();
+		$this->stub_http_dependencies();
+
+		$cache_key = $integration->get_updates_cache_key();
+
+		Functions\expect( 'get_site_transient' )
+			->once()
+			->with( $cache_key )
+			->andReturn( false );
+
+		Functions\expect( 'wp_remote_request' )
+			->once()
+			->andReturn( new WP_Error( 'http_error', 'Timeout' ) );
+
+		Functions\expect( 'set_site_transient' )->never();
+
+		$result = $integration->client->updates();
+
+		$this->assertInstanceOf( WP_Error::class, $result );
+	}
+
+	/** @test */
+	public function updates_skips_cache_when_period_is_zero() {
+		$integration = $this->create_integration();
+		$this->stub_http_dependencies();
+
+		$fixture = $this->load_fixture_raw( 'updates-available.json' );
+
+		Functions\expect( 'get_site_transient' )->never();
+		Functions\expect( 'set_site_transient' )->never();
+
+		Functions\expect( 'wp_remote_request' )->once()->andReturn( [] );
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+		$result = $integration->client->updates( 0 );
+
+		$this->assertIsArray( $result );
+		$this->assertSame( '1.3.0', $result['updates']['new_version'] );
+	}
+
+	/** @test */
+	public function updates_uses_custom_cache_period() {
+		$integration = $this->create_integration();
+		$this->stub_http_dependencies();
+
+		$fixture   = $this->load_fixture_raw( 'updates-available.json' );
+		$cache_key = $integration->get_updates_cache_key();
+
+		Functions\expect( 'get_site_transient' )
+			->once()
+			->with( $cache_key )
+			->andReturn( false );
+
+		Functions\expect( 'wp_remote_request' )->once()->andReturn( [] );
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+		Functions\expect( 'set_site_transient' )
+			->once()
+			->with( $cache_key, \Mockery::type( 'array' ), 300 )
+			->andReturn( true );
+
+		$result = $integration->client->updates( 300 );
+
+		$this->assertIsArray( $result );
+		$this->assertSame( '1.3.0', $result['updates']['new_version'] );
 	}
 }

@@ -23,6 +23,10 @@ class IntegrationTransientTest extends TestCase {
 
 		$saved = null;
 
+		Functions\expect( 'delete_site_transient' )
+			->once()
+			->with( $integration->get_updates_cache_key() );
+
 		Functions\expect( 'get_site_transient' )
 			->once()
 			->with( 'update_plugins' )
@@ -53,6 +57,10 @@ class IntegrationTransientTest extends TestCase {
 
 		$saved = null;
 
+		Functions\expect( 'delete_site_transient' )
+			->once()
+			->with( $integration->get_updates_cache_key() );
+
 		Functions\expect( 'get_site_transient' )
 			->once()
 			->with( 'update_plugins' )
@@ -79,6 +87,10 @@ class IntegrationTransientTest extends TestCase {
 		$integration = $this->create_integration();
 
 		$saved = null;
+
+		Functions\expect( 'delete_site_transient' )
+			->once()
+			->with( $integration->get_updates_cache_key() );
 
 		Functions\expect( 'get_site_transient' )
 			->once()
@@ -115,6 +127,10 @@ class IntegrationTransientTest extends TestCase {
 			->with( 'update_plugins' )
 			->andReturn( $transient );
 
+		Functions\expect( 'delete_site_transient' )
+			->once()
+			->with( $integration->get_updates_cache_key() );
+
 		Functions\expect( 'set_site_transient' )
 			->once()
 			->with( 'update_plugins', Mockery::on( function ( $t ) use ( &$saved ) {
@@ -126,5 +142,65 @@ class IntegrationTransientTest extends TestCase {
 
 		$this->assertIsArray( $saved->no_update );
 		$this->assertArrayHasKey( 'my-plugin/my-plugin.php', $saved->no_update );
+	}
+
+	/** @test */
+	public function clear_updates_transient_deletes_cache() {
+		$integration = $this->create_integration();
+
+		$transient            = new \stdClass();
+		$transient->response  = [];
+		$transient->no_update = [];
+		$transient->checked   = [];
+
+		$deleted_key = null;
+
+		Functions\expect( 'delete_site_transient' )
+			->once()
+			->with( Mockery::on( function ( $key ) use ( &$deleted_key ) {
+				$deleted_key = $key;
+				return true;
+			} ) );
+
+		Functions\expect( 'get_site_transient' )
+			->once()
+			->with( 'update_plugins' )
+			->andReturn( $transient );
+
+		Functions\expect( 'set_site_transient' )
+			->once();
+
+		$integration->clear_updates_transient();
+
+		$this->assertSame( $integration->get_updates_cache_key(), $deleted_key );
+	}
+
+	/** @test */
+	public function refresh_updates_transient_deletes_cache() {
+		$integration = $this->create_integration();
+
+		$transient = new \stdClass();
+
+		$deleted_key = null;
+
+		Functions\expect( 'delete_site_transient' )
+			->once()
+			->with( Mockery::on( function ( $key ) use ( &$deleted_key ) {
+				$deleted_key = $key;
+				return true;
+			} ) );
+
+		Functions\expect( 'get_site_transient' )
+			->once()
+			->with( 'update_plugins' )
+			->andReturn( $transient );
+
+		Functions\expect( 'set_site_transient' )
+			->once()
+			->with( 'update_plugins', $transient );
+
+		$integration->refresh_updates_transient();
+
+		$this->assertSame( $integration->get_updates_cache_key(), $deleted_key );
 	}
 }
