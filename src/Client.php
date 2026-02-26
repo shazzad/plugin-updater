@@ -117,11 +117,24 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		/**
 		 * Fetch plugin details from the remote API.
 		 *
+		 * Uses a short-lived site transient cache to avoid redundant HTTP calls
+		 * from plugins_api and the license admin page.
+		 *
 		 * @since 1.1
 		 *
+		 * @param int $cache_period Cache duration in seconds. Pass 0 to skip caching.
 		 * @return array|WP_Error Response data or WP_Error on failure.
 		 */
-		public function details() {
+		public function details( $cache_period = 600 ) {
+			if ( $cache_period > 0 ) {
+				$cache_key = $this->integration->get_details_cache_key();
+				$cached    = get_site_transient( $cache_key );
+
+				if ( false !== $cached ) {
+					return $cached;
+				}
+			}
+
 			$args = [];
 			if ( $this->integration->license_enabled ) {
 				$license = $this->integration->get_license_code();
@@ -130,7 +143,13 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 				}
 			}
 
-			return $this->request( 'details', $args );
+			$response = $this->request( 'details', $args );
+
+			if ( $cache_period > 0 && ! is_wp_error( $response ) ) {
+				set_site_transient( $cache_key, $response, $cache_period );
+			}
+
+			return $response;
 		}
 
 		/**

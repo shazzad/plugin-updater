@@ -255,6 +255,17 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 			return "{$this->license_name}_updates_cache";
 		}
 
+		/**
+		 * Retrieves the transient key for caching details API responses.
+		 *
+		 * @since 1.3
+		 *
+		 * @return string
+		 */
+		public function get_details_cache_key() {
+			return "{$this->license_name}_details_cache";
+		}
+
 
 		/**
 		 * Get license status.
@@ -365,6 +376,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 */
 		public function refresh_updates_transient() {
 			delete_site_transient( $this->get_updates_cache_key() );
+			delete_site_transient( $this->get_details_cache_key() );
 			set_site_transient( 'update_plugins', get_site_transient( 'update_plugins' ) );
 		}
 
@@ -376,6 +388,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 */
 		public function clear_updates_transient() {
 			delete_site_transient( $this->get_updates_cache_key() );
+			delete_site_transient( $this->get_details_cache_key() );
 
 			$transient = get_site_transient( 'update_plugins' );
 

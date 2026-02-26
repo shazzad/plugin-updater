@@ -382,4 +382,104 @@ class ClientApiRequestTest extends TestCase {
 		$this->assertIsArray( $result );
 		$this->assertSame( '1.3.0', $result['updates']['new_version'] );
 	}
+
+	/** @test */
+	public function details_returns_cached_response_without_api_call() {
+		$integration = $this->create_integration();
+
+		$cached_response = $this->load_fixture( 'details-success.json' );
+
+		Functions\expect( 'get_site_transient' )
+			->once()
+			->with( $integration->get_details_cache_key() )
+			->andReturn( $cached_response );
+
+		Functions\expect( 'wp_remote_request' )->never();
+
+		$result = $integration->client->details();
+
+		$this->assertIsArray( $result );
+		$this->assertArrayHasKey( 'details', $result );
+	}
+
+	/** @test */
+	public function details_caches_successful_api_response() {
+		$integration = $this->create_integration();
+		$this->stub_http_dependencies();
+
+		$fixture   = $this->load_fixture_raw( 'details-success.json' );
+		$cache_key = $integration->get_details_cache_key();
+
+		$stored = null;
+
+		Functions\expect( 'get_site_transient' )
+			->once()
+			->with( $cache_key )
+			->andReturn( false );
+
+		Functions\expect( 'wp_remote_request' )->once()->andReturn( [] );
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+		Functions\expect( 'set_site_transient' )
+			->once()
+			->with(
+				$cache_key,
+				\Mockery::on( function ( $value ) use ( &$stored ) {
+					$stored = $value;
+					return is_array( $value ) && ! empty( $value['details'] );
+				} ),
+				600
+			)
+			->andReturn( true );
+
+		$result = $integration->client->details();
+
+		$this->assertIsArray( $result );
+		$this->assertNotNull( $stored );
+		$this->assertArrayHasKey( 'details', $stored );
+	}
+
+	/** @test */
+	public function details_does_not_cache_wp_error_response() {
+		$integration = $this->create_integration();
+		$this->stub_http_dependencies();
+
+		$cache_key = $integration->get_details_cache_key();
+
+		Functions\expect( 'get_site_transient' )
+			->once()
+			->with( $cache_key )
+			->andReturn( false );
+
+		Functions\expect( 'wp_remote_request' )
+			->once()
+			->andReturn( new WP_Error( 'http_error', 'Timeout' ) );
+
+		Functions\expect( 'set_site_transient' )->never();
+
+		$result = $integration->client->details();
+
+		$this->assertInstanceOf( WP_Error::class, $result );
+	}
+
+	/** @test */
+	public function details_skips_cache_when_period_is_zero() {
+		$integration = $this->create_integration();
+		$this->stub_http_dependencies();
+
+		$fixture = $this->load_fixture_raw( 'details-success.json' );
+
+		Functions\expect( 'get_site_transient' )->never();
+		Functions\expect( 'set_site_transient' )->never();
+
+		Functions\expect( 'wp_remote_request' )->once()->andReturn( [] );
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+		$result = $integration->client->details( 0 );
+
+		$this->assertIsArray( $result );
+		$this->assertArrayHasKey( 'details', $result );
+	}
 }
