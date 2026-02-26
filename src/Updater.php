@@ -224,9 +224,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 				include_once ABSPATH . 'wp-admin/includes/plugin.php';
 				$plugin = get_plugin_data( WP_PLUGIN_DIR . '/' . $this->integration->product_file );
 
-				$this->integration->clear_updates_transient();
-
 				$this->integration->product_version = $plugin['Version'];
+
+				$this->integration->clear_updates_transient();
 				$this->integration->client->ping();
 			}
 		}

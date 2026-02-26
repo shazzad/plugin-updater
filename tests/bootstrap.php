@@ -15,6 +15,10 @@ if ( ! defined( 'WP_PLUGIN_DIR' ) ) {
 	define( 'WP_PLUGIN_DIR', ABSPATH . 'wp-content/plugins' );
 }
 
+if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+	define( 'MINUTE_IN_SECONDS', 60 );
+}
+
 // Minimal WP_Error stub so source files can reference the class.
 if ( ! class_exists( 'WP_Error' ) ) {
 	class WP_Error {
