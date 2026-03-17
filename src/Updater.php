@@ -81,6 +81,16 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 		 */
 		public function pre_set_transient( $transient ) {
 			if ( property_exists( $transient, 'checked' ) && ! empty( $transient->checked ) ) {
+				// Use the checked version as fallback when product_version is not yet set
+				// (e.g. pre_set_transient fires before the init hook).
+				if ( empty( $this->integration->product_version ) && isset( $transient->checked[ $this->integration->product_file ] ) ) {
+					$this->integration->product_version = $transient->checked[ $this->integration->product_file ];
+				}
+
+				if ( empty( $this->integration->product_version ) ) {
+					return $transient;
+				}
+
 				$response = $this->integration->client->updates();
 
 				if ( ! is_wp_error( $response ) && ! empty( $response['updates'] ) ) {
