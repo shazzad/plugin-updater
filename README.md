@@ -91,8 +91,8 @@ new \Shazzad\PluginUpdater\Integration(
     'tools.php',                    // Under Tools menu
     20                              // Menu priority
 ) )->setMeta( [
-    'php_version' => 'phpversion',
-    'theme'       => 'get_stylesheet',
+    'php_version' => function () { return phpversion(); },
+    'theme'       => function () { return get_stylesheet(); },
 ] );
 ```
 
@@ -194,7 +194,7 @@ Used for tracking plugin installations and status. Sends site environment data a
 
 ## Custom Metadata
 
-You can attach custom metadata to pings using `setMeta()`. Values can be static or callable — callables are resolved at ping time so data is always fresh.
+You can attach custom metadata to pings using `setMeta()`. Values can be static or closures — closures are resolved at ping time so data is always fresh.
 
 ```php
 ( new \Shazzad\PluginUpdater\Integration(
@@ -202,8 +202,8 @@ You can attach custom metadata to pings using `setMeta()`. Values can be static 
     plugin_basename( __FILE__ ),
     'my-plugin-id'
 ) )->setMeta( [
-    'php_version'          => 'phpversion',
-    'theme'                => 'get_stylesheet',
+    'php_version'          => function () { return phpversion(); },
+    'theme'                => function () { return get_stylesheet(); },
     'memory_limit'         => ini_get( 'memory_limit' ),
     'active_plugins_count' => function () {
         return count( get_option( 'active_plugins' ) );
@@ -212,7 +212,7 @@ You can attach custom metadata to pings using `setMeta()`. Values can be static 
 ```
 
 - **Static values** (strings, numbers) are sent as-is
-- **Callable values** (function names, closures) are called at each ping and the return value is sent
+- **Closures** are called at each ping and the return value is sent (only `Closure` instances, not arbitrary callable strings)
 - Metadata is synced on every ping — keys removed from `setMeta()` are deleted from the server
 
 ## Request Parameters
