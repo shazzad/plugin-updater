@@ -64,6 +64,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Tracker' ) ) :
 				return;
 			}
 
+			$this->integration->client->ping();
+
 			$response = $this->integration->client->check_license();
 			if ( is_wp_error( $response ) ) {
 				if ( 'invalid_license' === $response->get_error_code() ) {

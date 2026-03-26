@@ -52,7 +52,49 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		 * @return array|WP_Error Response data or WP_Error on failure.
 		 */
 		public function ping() {
-			return $this->request( 'ping', [], 2 );
+			$request_url = "{$this->integration->api_url}/products/{$this->integration->product_id}/ping";
+
+			$body = [
+				'product_version' => $this->integration->product_version,
+				'product_status'  => $this->integration->product_status,
+				'wp_url'          => esc_url( site_url( '', 'https' ) ),
+				'wp_locale'       => get_locale(),
+				'wp_version'      => get_bloginfo( 'version', 'display' ),
+				'admin_email'     => $this->integration->admin_email,
+				'admin_name'      => $this->integration->admin_name,
+			];
+
+			$request = wp_remote_post(
+				$request_url,
+				[
+					'timeout' => 2,
+					'body'    => $body,
+				]
+			);
+
+			if ( is_wp_error( $request ) ) {
+				return $request;
+			}
+
+			$status_code = wp_remote_retrieve_response_code( $request );
+			$body        = wp_remote_retrieve_body( $request );
+			$body        = json_decode( $body, true );
+
+			if ( empty( $body ) ) {
+				return new WP_Error(
+					'wprepo_api_fail',
+					'No response from update server'
+				);
+			}
+
+			if ( $status_code >= 400 ) {
+				return new WP_Error(
+					! empty( $body['code'] ) ? $body['code'] : 'wprepo_api_error',
+					! empty( $body['message'] ) ? $body['message'] : 'API request failed'
+				);
+			}
+
+			return $body;
 		}
 
 		/**
@@ -165,18 +207,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		private function request( $method, $args = [], $timeout = 5 ) {
 			$request_url = "{$this->integration->api_url}/products/{$this->integration->product_id}/$method";
 
-			$args = array_merge(
-				[
-					'product_version' => $this->integration->product_version,
-					'product_status'  => $this->integration->product_status,
-					'wp_url'          => esc_url( site_url( '', 'https' ) ),
-					'wp_locale'       => get_locale(),
-					'wp_version'      => get_bloginfo( 'version', 'display' ),
-				],
-				$args
-			);
-
-			$request_url = add_query_arg( $args, $request_url );
+			if ( ! empty( $args ) ) {
+				$request_url = add_query_arg( $args, $request_url );
+			}
 
 			$request = wp_remote_request(
 				$request_url,

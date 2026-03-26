@@ -62,6 +62,12 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 
 			$this->integration->product_version = $plugin['Version'];
 			$this->integration->product_name    = $plugin['Name'];
+			$this->integration->admin_email     = get_option( 'admin_email' );
+
+			$admins = get_users( [ 'role' => 'administrator', 'number' => 1, 'orderby' => 'ID', 'order' => 'ASC' ] );
+			if ( ! empty( $admins ) ) {
+				$this->integration->admin_name = $admins[0]->display_name;
+			}
 
 			// Schedule a cron job to refresh license data hourly.
 			$hook_name = "wprepo_sync_license_data_{$this->integration->license_name}";
@@ -80,6 +86,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 		 * @return object Filtered transient.
 		 */
 		public function pre_set_transient( $transient ) {
+			if ( 'inactive' === $this->integration->product_status ) {
+				return $transient;
+			}
+
 			if ( property_exists( $transient, 'checked' ) && ! empty( $transient->checked ) ) {
 				// Use the checked version as fallback when product_version is not yet set
 				// (e.g. pre_set_transient fires before the init hook).

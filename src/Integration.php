@@ -73,6 +73,20 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		public $product_name;
 
 		/**
+		 * Site admin email.
+		 *
+		 * @var string
+		 */
+		public $admin_email = '';
+
+		/**
+		 * First admin username.
+		 *
+		 * @var string
+		 */
+		public $admin_name = '';
+
+		/**
 		 * Sanitized name for the plugin license option.
 		 *
 		 * @var string
