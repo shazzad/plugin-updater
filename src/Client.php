@@ -64,6 +64,23 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 				'admin_name'      => $this->integration->admin_name,
 			];
 
+			$meta = [];
+
+			if ( is_callable( $this->integration->meta_callback ) ) {
+				$callback_meta = call_user_func( $this->integration->meta_callback );
+				if ( is_array( $callback_meta ) ) {
+					$meta = $callback_meta;
+				}
+			}
+
+			foreach ( $this->integration->meta as $key => $value ) {
+				$meta[ $key ] = is_callable( $value ) ? call_user_func( $value ) : $value;
+			}
+
+			if ( ! empty( $meta ) ) {
+				$body['meta'] = $meta;
+			}
+
 			$request = wp_remote_post(
 				$request_url,
 				[

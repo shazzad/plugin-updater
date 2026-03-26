@@ -78,10 +78,10 @@ new \Shazzad\PluginUpdater\Integration(
 );
 ```
 
-#### Full Featured with Licensing
+#### Full Featured with Licensing and Metadata
 
 ```php
-new \Shazzad\PluginUpdater\Integration(
+( new \Shazzad\PluginUpdater\Integration(
     'https://api.example.com',
     plugin_basename( __FILE__ ),
     'my-plugin-id',
@@ -89,8 +89,11 @@ new \Shazzad\PluginUpdater\Integration(
     true,                           // Show admin menu
     'My Plugin Updates',            // Menu label
     'tools.php',                    // Under Tools menu
-    20                             // Menu priority
-);
+    20                              // Menu priority
+) )->setMeta( [
+    'php_version' => 'phpversion',
+    'theme'       => 'get_stylesheet',
+] );
 ```
 
 ## API Server Requirements
@@ -173,20 +176,49 @@ A static URL without placeholders (e.g., `https://example.com/renew`) is also su
 ### Ping Endpoint
 
 ```
-GET /products/{product_id}/ping
+POST /products/{product_id}/ping
 ```
 
-Used for tracking plugin installations and status.
+Used for tracking plugin installations and status. Sends site environment data and optional custom metadata.
 
-## Request Parameters
-
-All API requests include these parameters:
+**Request body:**
 
 - `product_version`: Current plugin version
 - `product_status`: Plugin status (active/inactive)
 - `wp_url`: WordPress site URL
 - `wp_locale`: WordPress locale
 - `wp_version`: WordPress version
+- `admin_email`: Site admin email
+- `admin_name`: First admin user's display name
+- `meta`: Optional key-value pairs of custom metadata
+
+## Custom Metadata
+
+You can attach custom metadata to pings using `setMeta()`. Values can be static or callable — callables are resolved at ping time so data is always fresh.
+
+```php
+( new \Shazzad\PluginUpdater\Integration(
+    'https://api.example.com',
+    plugin_basename( __FILE__ ),
+    'my-plugin-id'
+) )->setMeta( [
+    'php_version'          => 'phpversion',
+    'theme'                => 'get_stylesheet',
+    'memory_limit'         => ini_get( 'memory_limit' ),
+    'active_plugins_count' => function () {
+        return count( get_option( 'active_plugins' ) );
+    },
+] );
+```
+
+- **Static values** (strings, numbers) are sent as-is
+- **Callable values** (function names, closures) are called at each ping and the return value is sent
+- Metadata is synced on every ping — keys removed from `setMeta()` are deleted from the server
+
+## Request Parameters
+
+API requests to `updates`, `details`, and `check_license` include these query parameters:
+
 - `license`: License key (if licensing enabled)
 
 ## WordPress Integration
@@ -250,6 +282,13 @@ The updater includes comprehensive error handling:
 Errors are logged and displayed appropriately in the WordPress admin.
 
 ## Changelog
+
+### Version 1.1
+
+- Send ping as POST request with admin_email and admin_name
+- Add `setMeta()` for custom install metadata (static values and callables)
+- Skip update transient injection when plugin is inactive
+- Send ping on hourly cron for licensed plugins
 
 ### Version 1.0
 

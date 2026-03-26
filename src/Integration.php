@@ -87,6 +87,21 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		public $admin_name = '';
 
 		/**
+		 * Custom metadata to send with pings.
+		 * Values can be static or callable (resolved at ping time).
+		 *
+		 * @var array
+		 */
+		public $meta = [];
+
+		/**
+		 * Callback that returns metadata array at ping time.
+		 *
+		 * @var callable|null
+		 */
+		public $meta_callback = null;
+
+		/**
 		 * Sanitized name for the plugin license option.
 		 *
 		 * @var string
@@ -212,6 +227,35 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 			if ( $this->display_menu ) {
 				$this->admin = new Admin( $this );
 			}
+		}
+
+		/**
+		 * Set custom metadata to send with pings.
+		 * Values can be static or callable (resolved at ping time).
+		 *
+		 * @since 1.2
+		 *
+		 * @param array $meta Key-value pairs of metadata.
+		 * @return $this
+		 */
+		public function setMeta( array $meta ) {
+			$this->meta = $meta;
+
+			return $this;
+		}
+
+		/**
+		 * Set a callback that returns metadata array at ping time.
+		 *
+		 * @since 1.2
+		 *
+		 * @param callable $callback Function that returns an array of metadata.
+		 * @return $this
+		 */
+		public function setMetaCallback( callable $callback ) {
+			$this->meta_callback = $callback;
+
+			return $this;
 		}
 
 		/**
