@@ -41,7 +41,7 @@ class ClientApiRequestTest extends TestCase {
 
 		$fixture = $this->load_fixture_raw( 'ping-success.json' );
 
-		Functions\expect( 'wp_remote_request' )
+		Functions\expect( 'wp_remote_post' )
 			->once()
 			->andReturn( [ 'body' => $fixture ] );
 
@@ -66,7 +66,7 @@ class ClientApiRequestTest extends TestCase {
 
 		$error = new WP_Error( 'http_error', 'Connection timed out' );
 
-		Functions\expect( 'wp_remote_request' )
+		Functions\expect( 'wp_remote_post' )
 			->once()
 			->andReturn( $error );
 
