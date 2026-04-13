@@ -268,9 +268,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 										class="regular-text" />
 									<?php if ( $this->integration->has_license_code() ) : ?>
 										<button type="submit" name="wprepo_sync" value="1"
-											class="button button-secondary" title="<?php esc_attr_e( 'Sync license data' ); ?>"
-											style="vertical-align: baseline;">
-											<span class="dashicons dashicons-update" style="vertical-align: text-bottom;"></span>
+											class="button button-secondary" title="<?php esc_attr_e( 'Sync license data' ); ?>">
+											<span class="dashicons dashicons-update"></span>
 											<?php _e( 'Sync' ); ?>
 										</button>
 									<?php endif; ?>
