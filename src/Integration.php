@@ -435,7 +435,18 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		public function refresh_updates_transient() {
 			delete_site_transient( $this->get_updates_cache_key() );
 			delete_site_transient( $this->get_details_cache_key() );
-			set_site_transient( 'update_plugins', get_site_transient( 'update_plugins' ) );
+
+			$transient = get_site_transient( 'update_plugins' );
+
+			// A cold transient reads back as false ('' once a false was stored);
+			// re-setting a non-object would pass it through the
+			// pre_set_site_transient_update_plugins filter chain, fataling
+			// callbacks on PHP 8. Normalize as wp_update_plugins() does.
+			if ( ! is_object( $transient ) ) {
+				$transient = new \stdClass();
+			}
+
+			set_site_transient( 'update_plugins', $transient );
 		}
 
 		/**
@@ -450,8 +461,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 
 			$transient = get_site_transient( 'update_plugins' );
 
-			// Initialize transient if it doesn't exist
-			if ( false === $transient ) {
+			// Initialize when missing or non-object — a transient stored as
+			// false reads back as '' on single site, which is not === false.
+			if ( ! is_object( $transient ) ) {
 				$transient            = new \stdClass();
 				$transient->response  = [];
 				$transient->no_update = [];
