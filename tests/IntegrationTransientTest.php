@@ -106,6 +106,35 @@ class IntegrationTransientTest extends TestCase {
 	}
 
 	/** @test */
+	public function initializes_transient_when_empty_string() {
+		$integration = $this->create_integration();
+
+		$saved = null;
+
+		Functions\when( 'delete_site_transient' )->justReturn( true );
+
+		// A transient stored as boolean false reads back as '' on single site,
+		// because the options table cannot round-trip false.
+		Functions\expect( 'get_site_transient' )
+			->once()
+			->with( 'update_plugins' )
+			->andReturn( '' );
+
+		Functions\expect( 'set_site_transient' )
+			->once()
+			->with( 'update_plugins', Mockery::on( function ( $t ) use ( &$saved ) {
+				$saved = $t;
+				return true;
+			} ) );
+
+		$integration->clear_updates_transient();
+
+		$this->assertIsObject( $saved );
+		$this->assertIsArray( $saved->response );
+		$this->assertArrayHasKey( 'my-plugin/my-plugin.php', $saved->no_update );
+	}
+
+	/** @test */
 	public function initializes_no_update_array_when_missing() {
 		$integration = $this->create_integration();
 
@@ -166,6 +195,38 @@ class IntegrationTransientTest extends TestCase {
 
 		$this->assertContains( $integration->get_updates_cache_key(), $deleted_keys );
 		$this->assertContains( $integration->get_details_cache_key(), $deleted_keys );
+	}
+
+	/** @test */
+	public function refresh_normalizes_cold_transient_to_object() {
+		$integration = $this->create_integration();
+
+		$saved = null;
+
+		Functions\when( 'delete_site_transient' )->justReturn( true );
+
+		Functions\expect( 'get_site_transient' )
+			->once()
+			->with( 'update_plugins' )
+			->andReturn( false );
+
+		Functions\expect( 'set_site_transient' )
+			->once()
+			->with( 'update_plugins', Mockery::on( function ( $t ) use ( &$saved ) {
+				$saved = $t;
+				return true;
+			} ) );
+
+		$integration->refresh_updates_transient();
+
+		// A cold transient must never be re-set as false: it would pass false
+		// through the pre_set_site_transient_update_plugins filter chain and
+		// store a value that reads back as '' on single site.
+		$this->assertInstanceOf( \stdClass::class, $saved );
+
+		// No last_checked, so core's wp_update_plugins() throttle never sees
+		// a fresh timestamp and the next update check proceeds normally.
+		$this->assertFalse( property_exists( $saved, 'last_checked' ) );
 	}
 
 	/** @test */

@@ -89,6 +89,33 @@ class UpdaterPreSetTransientTest extends TestCase {
 	}
 
 	/** @test */
+	public function returns_false_unmodified_when_transient_is_false() {
+		$integration = $this->create_integration();
+
+		$result = $integration->updater->pre_set_transient( false );
+
+		$this->assertFalse( $result );
+	}
+
+	/** @test */
+	public function returns_null_unmodified_when_transient_is_null() {
+		$integration = $this->create_integration();
+
+		$result = $integration->updater->pre_set_transient( null );
+
+		$this->assertNull( $result );
+	}
+
+	/** @test */
+	public function returns_empty_string_unmodified_when_transient_is_empty_string() {
+		$integration = $this->create_integration();
+
+		$result = $integration->updater->pre_set_transient( '' );
+
+		$this->assertSame( '', $result );
+	}
+
+	/** @test */
 	public function adds_to_response_when_new_version_available() {
 		$updater   = $this->create_updater_with_api_response( 'updates-available.json' );
 		$transient = $this->make_transient();

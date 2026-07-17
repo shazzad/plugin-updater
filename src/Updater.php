@@ -86,6 +86,14 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 		 * @return object Filtered transient.
 		 */
 		public function pre_set_transient( $transient ) {
+			// Third-party code may pass false/null through this filter (e.g.
+			// set_site_transient( 'update_plugins', null ) to force a refresh);
+			// property_exists() below fatals on non-object input on PHP 8.
+			// Return it unmodified — core normalizes on its next update check.
+			if ( ! is_object( $transient ) ) {
+				return $transient;
+			}
+
 			if ( 'inactive' === $this->integration->product_status ) {
 				return $transient;
 			}
