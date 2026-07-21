@@ -42,6 +42,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 			$this->integration = $integration;
 
 			add_action( 'init', [ $this, 'init' ] );
+			// Priority 1: must run before core's wp_update_plugins (priority 10 on this hook).
+			add_action( 'load-update-core.php', [ $this, 'clear_api_cache' ], 1 );
 			add_filter( 'pre_set_site_transient_update_plugins', [ $this, 'pre_set_transient' ], 50 );
 			add_filter( 'plugins_api', [ $this, 'plugins_api' ], 10, 3 );
 			add_filter( 'upgrader_package_options', [ $this, 'upgrader_package_options' ], 10 );
@@ -151,6 +153,22 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 			}
 
 			return $transient;
+		}
+
+		/**
+		 * Deletes cached API responses ahead of a manual update check.
+		 *
+		 * Core re-checks plugin updates on the Dashboard → Updates screen with
+		 * only a 1-minute throttle; without this the API response cache keeps
+		 * answering with data up to 10 minutes old, so "Check again" would not
+		 * surface a release published moments earlier.
+		 *
+		 * @since 1.1.4
+		 * @return void
+		 */
+		public function clear_api_cache() {
+			delete_site_transient( $this->integration->get_updates_cache_key() );
+			delete_site_transient( $this->integration->get_details_cache_key() );
 		}
 
 		/**

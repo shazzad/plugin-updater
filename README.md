@@ -211,9 +211,31 @@ You can attach custom metadata to pings using `setMeta()`. Values can be static 
 ] );
 ```
 
+Alternatively, `setMetaCallback()` accepts a single closure that builds the whole metadata array at once — it runs fresh at every ping. Both methods are chainable and can be combined:
+
+```php
+( new \Shazzad\PluginUpdater\Integration(
+    'https://api.example.com',
+    plugin_basename( __FILE__ ),
+    'my-plugin-id'
+) )->setMeta( [
+    'environment' => 'production',
+    'channel'     => 'direct',
+] )->setMetaCallback( function () {
+    return [
+        'php_version'  => phpversion(),
+        'memory_limit' => ini_get( 'memory_limit' ),
+        'theme'        => get_stylesheet(),
+        'plugin_count' => count( get_option( 'active_plugins', [] ) ),
+    ];
+} );
+```
+
 - **Static values** (strings, numbers) are sent as-is
-- **Closures** are called at each ping and the return value is sent (only `Closure` instances, not arbitrary callable strings)
+- **Closures** are called at each ping and the return value is sent (only `Closure` instances, not arbitrary callable strings — this applies to `setMetaCallback()` too)
+- When both are used, the `setMetaCallback()` array is built first and `setMeta()` entries are merged over it — on a key conflict, `setMeta()` wins
 - Metadata is synced on every ping — keys removed from `setMeta()` are deleted from the server
+- The site admin name and email are always sent automatically as top-level ping fields (`admin_name`, `admin_email`) — no metadata entries needed for those
 
 ## Request Parameters
 
@@ -283,20 +305,7 @@ Errors are logged and displayed appropriately in the WordPress admin.
 
 ## Changelog
 
-### Version 1.1
-
-- Send ping as POST request with admin_email and admin_name
-- Add `setMeta()` for custom install metadata (static values and callables)
-- Skip update transient injection when plugin is inactive
-- Send ping on hourly cron for licensed plugins
-
-### Version 1.0
-
-- Refactored into modular structure
-- Improved error handling
-- Enhanced security measures
-- Better WordPress integration
-- Comprehensive documentation
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 ## Support
 
