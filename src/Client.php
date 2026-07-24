@@ -52,6 +52,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		 * @return array|WP_Error Response data or WP_Error on failure.
 		 */
 		public function ping() {
+			global $wpdb;
+
 			$request_url = "{$this->integration->api_url}/products/{$this->integration->product_id}/ping";
 
 			$body = [
@@ -62,6 +64,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 				'wp_version'      => get_bloginfo( 'version', 'display' ),
 				'admin_email'     => $this->integration->admin_email,
 				'admin_name'      => $this->integration->admin_name,
+				'php_version'     => phpversion(),
+				'db_version'      => is_object( $wpdb ) && is_callable( [ $wpdb, 'db_server_info' ] ) ? (string) $wpdb->db_server_info() : '',
+				'server_software' => isset( $_SERVER['SERVER_SOFTWARE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['SERVER_SOFTWARE'] ) ) : '',
 			];
 
 			$meta = [];

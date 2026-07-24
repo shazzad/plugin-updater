@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 - 2026-07-25
+
+- Report server environment automatically with every ping: `php_version`, `db_version`, and `server_software` are now sent as top-level fields — no `setMeta()`/`setMetaCallback()` entries needed for those. Values degrade to empty strings when unavailable (e.g. WP-CLI), and the server ignores empty values, so no configuration is required
+
 ## 1.1.4 - 2026-07-21
 
 - Clear cached API responses when the Dashboard → Updates screen loads, so a manual "Check again" fetches fresh update data instead of waiting out the 10-minute response cache

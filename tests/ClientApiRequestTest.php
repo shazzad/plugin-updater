@@ -60,6 +60,91 @@ class ClientApiRequestTest extends TestCase {
 	}
 
 	/** @test */
+	public function ping_sends_environment_fields_in_body() {
+		$integration = $this->create_integration();
+		$this->stub_api_dependencies();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		$GLOBALS['wpdb'] = new class {
+			public function db_server_info() {
+				return '8.0.36-test';
+			}
+		};
+		$prev_server_software        = $_SERVER['SERVER_SOFTWARE'] ?? null;
+		$_SERVER['SERVER_SOFTWARE']  = 'nginx/1.24.0';
+
+		try {
+			$fixture       = $this->load_fixture_raw( 'ping-success.json' );
+			$captured_args = null;
+
+			Functions\expect( 'wp_remote_post' )
+				->once()
+				->with( \Mockery::any(), \Mockery::on( function ( $args ) use ( &$captured_args ) {
+					$captured_args = $args;
+					return true;
+				} ) )
+				->andReturn( [ 'body' => $fixture ] );
+
+			Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+			Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+			$integration->client->ping();
+
+			$this->assertIsArray( $captured_args );
+			$this->assertSame( phpversion(), $captured_args['body']['php_version'] );
+			$this->assertSame( '8.0.36-test', $captured_args['body']['db_version'] );
+			$this->assertSame( 'nginx/1.24.0', $captured_args['body']['server_software'] );
+		} finally {
+			unset( $GLOBALS['wpdb'] );
+			if ( null === $prev_server_software ) {
+				unset( $_SERVER['SERVER_SOFTWARE'] );
+			} else {
+				$_SERVER['SERVER_SOFTWARE'] = $prev_server_software;
+			}
+		}
+	}
+
+	/** @test */
+	public function ping_sends_empty_environment_when_unavailable() {
+		$integration = $this->create_integration();
+		$this->stub_api_dependencies();
+
+		// No $wpdb->db_server_info() and no SERVER_SOFTWARE (e.g. WP-CLI cron).
+		$GLOBALS['wpdb']            = new class {};
+		$prev_server_software       = $_SERVER['SERVER_SOFTWARE'] ?? null;
+		unset( $_SERVER['SERVER_SOFTWARE'] );
+
+		try {
+			$fixture       = $this->load_fixture_raw( 'ping-success.json' );
+			$captured_args = null;
+
+			Functions\expect( 'wp_remote_post' )
+				->once()
+				->with( \Mockery::any(), \Mockery::on( function ( $args ) use ( &$captured_args ) {
+					$captured_args = $args;
+					return true;
+				} ) )
+				->andReturn( [ 'body' => $fixture ] );
+
+			Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+			Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+			$result = $integration->client->ping();
+
+			$this->assertIsArray( $result );
+			$this->assertSame( phpversion(), $captured_args['body']['php_version'] );
+			$this->assertSame( '', $captured_args['body']['db_version'] );
+			$this->assertSame( '', $captured_args['body']['server_software'] );
+		} finally {
+			unset( $GLOBALS['wpdb'] );
+			if ( null !== $prev_server_software ) {
+				$_SERVER['SERVER_SOFTWARE'] = $prev_server_software;
+			}
+		}
+	}
+
+	/** @test */
 	public function wp_error_from_wp_remote_request_is_returned() {
 		$integration = $this->create_integration();
 		$this->stub_api_dependencies();
