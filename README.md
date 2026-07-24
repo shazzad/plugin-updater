@@ -190,6 +190,9 @@ Used for tracking plugin installations and status. Sends site environment data a
 - `wp_version`: WordPress version
 - `admin_email`: Site admin email
 - `admin_name`: First admin user's display name
+- `php_version`: PHP version of the server
+- `db_version`: Database server version (e.g. `8.0.36` or `10.11.6-MariaDB`)
+- `server_software`: Web server software (e.g. `nginx/1.24.0`, `Apache/2.4.58 (Ubuntu)`)
 - `meta`: Optional key-value pairs of custom metadata
 
 ## Custom Metadata
@@ -202,7 +205,6 @@ You can attach custom metadata to pings using `setMeta()`. Values can be static 
     plugin_basename( __FILE__ ),
     'my-plugin-id'
 ) )->setMeta( [
-    'php_version'          => function () { return phpversion(); },
     'theme'                => function () { return get_stylesheet(); },
     'memory_limit'         => ini_get( 'memory_limit' ),
     'active_plugins_count' => function () {
@@ -223,7 +225,6 @@ Alternatively, `setMetaCallback()` accepts a single closure that builds the whol
     'channel'     => 'direct',
 ] )->setMetaCallback( function () {
     return [
-        'php_version'  => phpversion(),
         'memory_limit' => ini_get( 'memory_limit' ),
         'theme'        => get_stylesheet(),
         'plugin_count' => count( get_option( 'active_plugins', [] ) ),
@@ -236,6 +237,7 @@ Alternatively, `setMetaCallback()` accepts a single closure that builds the whol
 - When both are used, the `setMetaCallback()` array is built first and `setMeta()` entries are merged over it — on a key conflict, `setMeta()` wins
 - Metadata is synced on every ping — keys removed from `setMeta()` are deleted from the server
 - The site admin name and email are always sent automatically as top-level ping fields (`admin_name`, `admin_email`) — no metadata entries needed for those
+- The server environment is also reported automatically as top-level ping fields (`php_version`, `db_version`, `server_software`) — do not duplicate these in metadata
 
 ## Request Parameters
 
