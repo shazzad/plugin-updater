@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.1 - 2026-07-27
+
+- README: wrap the Quick Start example in a `class_exists()` guard so a build missing the library degrades gracefully instead of fataling
+- README: remove `php_version` from the `setMeta()` example — it's already sent automatically as a top-level ping field since 1.2.0
+
 ## 1.2.0 - 2026-07-25
 
 - Report server environment automatically with every ping: `php_version`, `db_version`, and `server_software` are now sent as top-level fields — no `setMeta()`/`setMetaCallback()` entries needed for those. Values degrade to empty strings when unavailable (e.g. WP-CLI), and the server ignores empty values, so no configuration is required

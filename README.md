@@ -27,17 +27,21 @@ composer require shazzad/plugin-updater
 
 ```php
 <?php
-// Initialize the updater (autoloaded via Composer)
-new \Shazzad\PluginUpdater\Integration(
-    'https://your-api-server.com/api',  // API URL
-    plugin_basename( __FILE__ ),        // Plugin file path
-    'your-product-id',                  // Product ID
-    true,                              // Enable licensing
-    true,                              // Display admin menu
-    'My Plugin License',               // Menu label
-    'plugins.php',                     // Parent menu
-    10                                 // Menu priority
-);
+// Initialize the updater (autoloaded via Composer). Guarded with class_exists()
+// so a build that's missing the library degrades to "no license/update UI"
+// instead of a fatal error on every request.
+if ( class_exists( \Shazzad\PluginUpdater\Integration::class ) ) {
+    new \Shazzad\PluginUpdater\Integration(
+        'https://your-api-server.com/api',  // API URL
+        plugin_basename( __FILE__ ),        // Plugin file path
+        'your-product-id',                  // Product ID
+        true,                              // Enable licensing
+        true,                              // Display admin menu
+        'My Plugin License',               // Menu label
+        'plugins.php',                     // Parent menu
+        10                                 // Menu priority
+    );
+}
 ```
 
 ## File Structure
@@ -91,8 +95,7 @@ new \Shazzad\PluginUpdater\Integration(
     'tools.php',                    // Under Tools menu
     20                              // Menu priority
 ) )->setMeta( [
-    'php_version' => function () { return phpversion(); },
-    'theme'       => function () { return get_stylesheet(); },
+    'theme' => function () { return get_stylesheet(); },
 ] );
 ```
 
