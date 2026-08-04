@@ -231,6 +231,80 @@ class ClientApiRequestTest extends TestCase {
 	}
 
 	/** @test */
+	public function ping_resolves_details_when_init_has_not_run() {
+		$integration = $this->create_integration();
+		$this->stub_api_dependencies();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		// The state an activation request leaves behind: the plugin file is
+		// included after `init` has already fired, so the hook never runs.
+		$integration->product_version = '';
+		$integration->product_name    = '';
+		$integration->admin_email     = '';
+		$integration->admin_name      = '';
+
+		Functions\when( 'get_plugin_data' )->justReturn( [
+			'Version' => '2.5.0.5-feed',
+			'Name'    => 'HomeRunner',
+		] );
+		Functions\when( 'get_option' )->justReturn( 'eli@hudsoncreativestudio.com' );
+		Functions\when( 'get_users' )->justReturn( [ (object) [ 'display_name' => 'Hudson Dev' ] ] );
+
+		$captured_args = null;
+		$fixture       = $this->load_fixture_raw( 'ping-success.json' );
+
+		Functions\expect( 'wp_remote_post' )
+			->once()
+			->with( \Mockery::any(), \Mockery::on( function ( $args ) use ( &$captured_args ) {
+				$captured_args = $args;
+				return true;
+			} ) )
+			->andReturn( [ 'body' => $fixture ] );
+
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+		$integration->client->ping();
+
+		$this->assertSame( '2.5.0.5-feed', $captured_args['body']['product_version'] );
+		$this->assertSame( 'eli@hudsoncreativestudio.com', $captured_args['body']['admin_email'] );
+		$this->assertSame( 'Hudson Dev', $captured_args['body']['admin_name'] );
+	}
+
+	/** @test */
+	public function ping_does_not_re_resolve_details_already_set() {
+		$integration = $this->create_integration();
+		$this->stub_api_dependencies();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		// Everything is already populated, so the normal ping path must not
+		// re-read the plugin header or query users on every request.
+		Functions\expect( 'get_plugin_data' )->never();
+		Functions\expect( 'get_users' )->never();
+
+		$captured_args = null;
+		$fixture       = $this->load_fixture_raw( 'ping-success.json' );
+
+		Functions\expect( 'wp_remote_post' )
+			->once()
+			->with( \Mockery::any(), \Mockery::on( function ( $args ) use ( &$captured_args ) {
+				$captured_args = $args;
+				return true;
+			} ) )
+			->andReturn( [ 'body' => $fixture ] );
+
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+		$integration->client->ping();
+
+		$this->assertSame( 'admin@example.com', $captured_args['body']['admin_email'] );
+		$this->assertSame( 'Site Admin', $captured_args['body']['admin_name'] );
+	}
+
+	/** @test */
 	public function license_included_in_updates_when_enabled() {
 		$integration = $this->create_integration( [ 'license_enabled' => true ] );
 		$this->stub_api_dependencies();

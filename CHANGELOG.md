@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.0 - 2026-08-05
+
+- Ping now resolves the plugin and site details it reports instead of relying on the `init` hook having fired. Activating a plugin includes its file and fires `activate_{file}` after `init` has already passed, so the callback registered in the constructor never ran and the activation ping reported `admin_email` and `admin_name` empty — which the server then wrote over the stored values. `product_version` escaped only because `clear_updates_transient()` happens to backfill it first
+- Add `Integration::prepare_product_data()`; `Updater::init()` now delegates to it, and values already set are left alone so the normal ping path does no extra work
+
 ## 1.3.0 - 2026-08-05
 
 - Send the stored license code with each ping, so the server can bind the install to its license. Previously ping carried the site environment but no license, while `updates`/`check_license` carried the license but no site identity — the two halves never met, and install rows were recorded unbound. Requires `shazzad-plugin-repo` 1.7.1 or later, which stops treating a license-less ping as an instruction to clear the binding
