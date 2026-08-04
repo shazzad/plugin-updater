@@ -390,6 +390,32 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		}
 
 		/**
+		 * Records that the server rejected the stored license.
+		 *
+		 * Marks the stored data invalid rather than deleting the license code:
+		 * the server returns `invalid_license` for any unmatched code/product
+		 * pair, which also covers a site pointed at the wrong product or a
+		 * license row removed by mistake. Enforcement is server-side either
+		 * way, so discarding the customer's only copy of the code buys nothing.
+		 * Existing data (notably `renewal_url`) is preserved.
+		 *
+		 * @since 1.4
+		 *
+		 * @return bool True if the value was updated, false otherwise.
+		 */
+		public function mark_license_invalid() {
+			$data = $this->get_license_data();
+
+			if ( ! is_array( $data ) ) {
+				$data = [];
+			}
+
+			$data['status'] = 'invalid';
+
+			return $this->update_license_data( $data );
+		}
+
+		/**
 		 * Deletes the license code from the database.
 		 *
 		 * @since 1.2

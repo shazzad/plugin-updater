@@ -117,8 +117,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 
 			if ( is_wp_error( $response ) ) {
 				if ( 'invalid_license' === $response->get_error_code() ) {
-					$this->integration->delete_license_code();
-					$this->integration->delete_license_data();
+					$this->integration->mark_license_invalid();
 				}
 
 				wp_redirect(
@@ -185,11 +184,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 			$response = $this->integration->client->check_license( $key );
 
 			if ( is_wp_error( $response ) ) {
-				if ( 'invalid_license' === $response->get_error_code() ) {
-					$this->integration->delete_license_code();
-					$this->integration->delete_license_data();
-				}
-
+				// The submitted key is only stored once it verifies, so a
+				// rejection here must leave any previously working license
+				// untouched — otherwise one typo clears it and stores nothing.
 				wp_redirect(
 					add_query_arg(
 						'error',
@@ -407,6 +404,15 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 						} else {
 							$output .= '<strong>Your license has been suspended. Please contact support.</strong>';
 						}
+					} elseif ( 'invalid' === $this->integration->get_license_status() ) {
+						if ( ! empty( $details['homepage'] ) ) {
+							$output .= \sprintf(
+								'<strong style="color:red;">Your license key was not recognised by the update server. Check the key below, or <a href="%s">contact support</a>.</strong>',
+								esc_url( $details['homepage'] )
+							);
+						} else {
+							$output .= '<strong style="color:red;">Your license key was not recognised by the update server. Check the key below, or contact support.</strong>';
+						}
 					} else {
 						if ( ! empty( $details['homepage'] ) ) {
 							$output .= \sprintf(
@@ -431,6 +437,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Admin' ) ) :
 					} else {
 						$output .= '<p style="color:red;">Your license has expired. Please renew your license to get new updates.</p>';
 					}
+				} elseif ( 'invalid' === $this->integration->get_license_status() ) {
+					$output .= '<p style="color:red;">Your license key was not recognised by the update server. You will not receive updates until it is corrected.</p>';
 				}
 			}
 

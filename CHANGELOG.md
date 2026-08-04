@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0 - 2026-08-05
+
+- Stop deleting the stored license code when the server answers `invalid_license`. That code is returned for any unmatched code/product pair — a site pointed at the wrong product, a license row removed by mistake — not only for a revoked license, and enforcement is server-side either way, so discarding the customer's only copy of the key achieved nothing. The stored data is now marked `status: invalid` instead, preserving `renewal_url` and the rest
+- Fix: a rejected key submitted on the license page no longer wipes a previously working license. The submitted key is only stored once it verifies, so the failure path was deleting the old key and storing nothing
+- Add `Integration::mark_license_invalid()`
+- The admin license panel now explains an unrecognised key instead of reporting a missing upgrade package
+
 ## 1.3.0 - 2026-08-05
 
 - Send the stored license code with each ping, so the server can bind the install to its license. Previously ping carried the site environment but no license, while `updates`/`check_license` carried the license but no site identity — the two halves never met, and install rows were recorded unbound. Requires `shazzad-plugin-repo` 1.7.1 or later, which stops treating a license-less ping as an instruction to clear the binding
