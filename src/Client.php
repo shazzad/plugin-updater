@@ -69,6 +69,15 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 				'server_software' => isset( $_SERVER['SERVER_SOFTWARE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['SERVER_SOFTWARE'] ) ) : '',
 			];
 
+			// Sent so the server can bind this install to its license. Without it
+			// the install row is stored unbound and seat counts stay empty.
+			if ( $this->integration->license_enabled ) {
+				$license = $this->integration->get_license_code();
+				if ( $license ) {
+					$body['license'] = $license;
+				}
+			}
+
 			$meta = [];
 
 			if ( $this->integration->meta_callback instanceof \Closure ) {

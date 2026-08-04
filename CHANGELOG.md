@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.0 - 2026-08-05
+
+- Send the stored license code with each ping, so the server can bind the install to its license. Previously ping carried the site environment but no license, while `updates`/`check_license` carried the license but no site identity — the two halves never met, and install rows were recorded unbound. Requires `shazzad-plugin-repo` 1.7.1 or later, which stops treating a license-less ping as an instruction to clear the binding
+
 ## 1.2.1 - 2026-07-27
 
 - README: wrap the Quick Start example in a `class_exists()` guard so a build missing the library degrades gracefully instead of fataling

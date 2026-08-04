@@ -260,6 +260,63 @@ class ClientApiRequestTest extends TestCase {
 	}
 
 	/** @test */
+	public function license_included_in_ping_when_enabled() {
+		$integration = $this->create_integration( [ 'license_enabled' => true ] );
+		$this->stub_api_dependencies();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		Functions\expect( 'get_option' )
+			->once()
+			->with( 'my-plugin42_code' )
+			->andReturn( 'MY-LICENSE-KEY' );
+
+		$captured_args = null;
+		$fixture       = $this->load_fixture_raw( 'ping-success.json' );
+
+		Functions\expect( 'wp_remote_post' )
+			->once()
+			->with( \Mockery::any(), \Mockery::on( function ( $args ) use ( &$captured_args ) {
+				$captured_args = $args;
+				return true;
+			} ) )
+			->andReturn( [ 'body' => $fixture ] );
+
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+		$integration->client->ping();
+
+		$this->assertSame( 'MY-LICENSE-KEY', $captured_args['body']['license'] );
+	}
+
+	/** @test */
+	public function license_omitted_from_ping_when_disabled() {
+		$integration = $this->create_integration( [ 'license_enabled' => false ] );
+		$this->stub_api_dependencies();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		$captured_args = null;
+		$fixture       = $this->load_fixture_raw( 'ping-success.json' );
+
+		Functions\expect( 'wp_remote_post' )
+			->once()
+			->with( \Mockery::any(), \Mockery::on( function ( $args ) use ( &$captured_args ) {
+				$captured_args = $args;
+				return true;
+			} ) )
+			->andReturn( [ 'body' => $fixture ] );
+
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+		$integration->client->ping();
+
+		$this->assertArrayNotHasKey( 'license', $captured_args['body'] );
+	}
+
+	/** @test */
 	public function explicit_license_overrides_stored_value() {
 		$integration = $this->create_integration( [ 'license_enabled' => true ] );
 		$this->stub_api_dependencies();
