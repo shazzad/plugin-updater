@@ -235,6 +235,73 @@ class IntegrationLicenseTest extends TestCase {
 	}
 
 	/** @test */
+	public function mark_license_invalid_keeps_existing_data_and_sets_status() {
+		$integration = $this->create_integration();
+
+		Functions\when( 'get_option' )->alias( function ( $key ) {
+			if ( 'my-plugin42_data' === $key ) {
+				return [
+					'status'      => 'active',
+					'buyer_email' => 'user@example.com',
+					'renewal_url' => 'https://example.com/renew',
+				];
+			}
+
+			return false;
+		} );
+
+		$captured = null;
+
+		Functions\expect( 'update_option' )
+			->once()
+			->with( 'my-plugin42_data', \Mockery::on( function ( $data ) use ( &$captured ) {
+				$captured = $data;
+				return true;
+			} ) )
+			->andReturn( true );
+
+		$integration->mark_license_invalid();
+
+		$this->assertSame( 'invalid', $captured['status'] );
+		// Renewal details must survive so the admin page can still offer a link.
+		$this->assertSame( 'https://example.com/renew', $captured['renewal_url'] );
+		$this->assertSame( 'user@example.com', $captured['buyer_email'] );
+	}
+
+	/** @test */
+	public function mark_license_invalid_works_with_no_stored_data() {
+		$integration = $this->create_integration();
+
+		Functions\when( 'get_option' )->justReturn( false );
+
+		$captured = null;
+
+		Functions\expect( 'update_option' )
+			->once()
+			->with( 'my-plugin42_data', \Mockery::on( function ( $data ) use ( &$captured ) {
+				$captured = $data;
+				return true;
+			} ) )
+			->andReturn( true );
+
+		$integration->mark_license_invalid();
+
+		$this->assertSame( [ 'status' => 'invalid' ], $captured );
+	}
+
+	/** @test */
+	public function mark_license_invalid_never_deletes_the_code() {
+		$integration = $this->create_integration();
+
+		Functions\when( 'get_option' )->justReturn( false );
+		Functions\when( 'update_option' )->justReturn( true );
+
+		Functions\expect( 'delete_option' )->never();
+
+		$this->assertTrue( $integration->mark_license_invalid() );
+	}
+
+	/** @test */
 	public function get_license_renewal_url_returns_url_without_placeholders() {
 		$integration = $this->create_integration();
 

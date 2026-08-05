@@ -2,6 +2,10 @@
 
 ## 1.4.0 - 2026-08-05
 
+- Stop deleting the stored license code when the server answers `invalid_license`. That code is returned for any unmatched code/product pair — a site pointed at the wrong product, a license row removed by mistake — not only for a revoked license, and enforcement is server-side either way, so discarding the customer's only copy of the key achieved nothing. The stored data is now marked `status: invalid` instead, preserving `renewal_url` and the rest
+- Fix: a rejected key submitted on the license page no longer wipes a previously working license. The submitted key is only stored once it verifies, so the failure path was deleting the old key and storing nothing
+- Add `Integration::mark_license_invalid()`
+- The admin license panel now explains an unrecognised key instead of reporting a missing upgrade package
 - Ping now resolves the plugin and site details it reports instead of relying on the `init` hook having fired. Activating a plugin includes its file and fires `activate_{file}` after `init` has already passed, so the callback registered in the constructor never ran and the activation ping reported `admin_email` and `admin_name` empty — which the server then wrote over the stored values. `product_version` escaped only because `clear_updates_transient()` happens to backfill it first
 - Add `Integration::prepare_product_data()`; `Updater::init()` now delegates to it, and values already set are left alone so the normal ping path does no extra work
 
