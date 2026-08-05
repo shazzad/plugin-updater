@@ -259,6 +259,51 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		}
 
 		/**
+		 * Resolves the plugin and site details reported to the API.
+		 *
+		 * Normally filled on `init`, but a ping can fire in a request where
+		 * that hook has already passed: activating a plugin includes its file
+		 * and fires `activate_{file}` after `init`, so the callback registered
+		 * in this constructor never runs and the activation ping would report
+		 * empty details. Calling this from ping() keeps the payload complete
+		 * whatever the hook timing.
+		 *
+		 * @since 1.4
+		 *
+		 * @param bool $force Overwrite values that are already set. Default false.
+		 * @return void
+		 */
+		public function prepare_product_data( $force = false ) {
+			if ( $force || empty( $this->product_version ) || empty( $this->product_name ) ) {
+				if ( ! function_exists( 'get_plugin_data' ) ) {
+					include_once ABSPATH . 'wp-admin/includes/plugin.php';
+				}
+
+				$plugin = get_plugin_data( WP_PLUGIN_DIR . '/' . $this->product_file );
+
+				if ( $force || empty( $this->product_version ) ) {
+					$this->product_version = $plugin['Version'];
+				}
+
+				if ( $force || empty( $this->product_name ) ) {
+					$this->product_name = $plugin['Name'];
+				}
+			}
+
+			if ( $force || empty( $this->admin_email ) ) {
+				$this->admin_email = get_option( 'admin_email' );
+			}
+
+			if ( $force || empty( $this->admin_name ) ) {
+				$admins = get_users( [ 'role' => 'administrator', 'number' => 1, 'orderby' => 'ID', 'order' => 'ASC' ] );
+
+				if ( ! empty( $admins ) ) {
+					$this->admin_name = $admins[0]->display_name;
+				}
+			}
+		}
+
+		/**
 		 * Retrieves the option key for storing the license code.
 		 *
 		 * @since 1.0

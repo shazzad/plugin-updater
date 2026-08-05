@@ -59,17 +59,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Updater' ) ) :
 		 * @return void
 		 */
 		public function init() {
-			include_once ABSPATH . 'wp-admin/includes/plugin.php';
-			$plugin = get_plugin_data( WP_PLUGIN_DIR . '/' . $this->integration->product_file );
-
-			$this->integration->product_version = $plugin['Version'];
-			$this->integration->product_name    = $plugin['Name'];
-			$this->integration->admin_email     = get_option( 'admin_email' );
-
-			$admins = get_users( [ 'role' => 'administrator', 'number' => 1, 'orderby' => 'ID', 'order' => 'ASC' ] );
-			if ( ! empty( $admins ) ) {
-				$this->integration->admin_name = $admins[0]->display_name;
-			}
+			$this->integration->prepare_product_data( true );
 
 			// Schedule a cron job to refresh license data hourly.
 			$hook_name = "wprepo_sync_license_data_{$this->integration->license_name}";
