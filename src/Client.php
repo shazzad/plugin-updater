@@ -54,6 +54,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		public function ping() {
 			global $wpdb;
 
+			// Fills anything `init` did not get to set — an activation ping
+			// runs in a request where that hook has already passed.
+			$this->integration->prepare_product_data();
+
 			$request_url = "{$this->integration->api_url}/products/{$this->integration->product_id}/ping";
 
 			$body = [

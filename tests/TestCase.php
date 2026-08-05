@@ -71,8 +71,12 @@ abstract class TestCase extends PHPUnitTestCase {
 			$args['display_menu']
 		);
 
-		// Set a default version for tests.
+		// Stand in for what prepare_product_data() resolves on `init`, so tests
+		// exercise the path they name rather than re-resolving it every time.
 		$integration->product_version = '1.0.0';
+		$integration->product_name    = 'My Plugin';
+		$integration->admin_email     = 'admin@example.com';
+		$integration->admin_name      = 'Site Admin';
 
 		return $integration;
 	}
