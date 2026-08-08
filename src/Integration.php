@@ -38,6 +38,18 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		public $product_id;
 
 		/**
+		 * Opaque product uid (`prod_…`) on the remote server.
+		 *
+		 * When set, API URLs and license storage keys use the uid instead
+		 * of the numeric product id.
+		 *
+		 * @since 1.5
+		 *
+		 * @var string
+		 */
+		public $product_uid = '';
+
+		/**
 		 * Main plugin file path (e.g., plugin-folder/plugin-file.php).
 		 *
 		 * @var string
@@ -259,6 +271,25 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		}
 
 		/**
+		 * Sets the opaque product uid used for API URLs and storage keys.
+		 *
+		 * Fluent, like setMeta(). Consumers should guard the call with
+		 * method_exists(): on a site running several plugins that bundle
+		 * this library, the oldest loaded copy wins the class_exists race
+		 * and may not have this method.
+		 *
+		 * @since 1.5
+		 *
+		 * @param string $product_uid The `prod_…` uid from the repo server.
+		 * @return $this
+		 */
+		public function setProductUid( $product_uid ) {
+			$this->product_uid = $product_uid;
+
+			return $this;
+		}
+
+		/**
 		 * Resolves the plugin and site details reported to the API.
 		 *
 		 * Normally filled on `init`, but a ping can fire in a request where
@@ -304,6 +335,35 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		}
 
 		/**
+		 * Resolves the product identifier used in API URLs.
+		 *
+		 * @since 1.5
+		 *
+		 * @return string The product uid when set, otherwise the numeric id.
+		 */
+		public function get_api_product_key() {
+			return $this->product_uid ? $this->product_uid : $this->product_id;
+		}
+
+		/**
+		 * Resolves the base name for license/cache storage keys.
+		 *
+		 * Uid-based when the uid is set; otherwise the id-based
+		 * `license_name`, which keeps its value for backward compatibility.
+		 *
+		 * @since 1.5
+		 *
+		 * @return string
+		 */
+		public function get_storage_name() {
+			if ( $this->product_uid ) {
+				return sanitize_key( "{$this->product_slug}{$this->product_uid}" );
+			}
+
+			return $this->license_name;
+		}
+
+		/**
 		 * Retrieves the option key for storing the license code.
 		 *
 		 * @since 1.0
@@ -311,7 +371,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 * @return string
 		 */
 		public function get_license_code_key() {
-			return "{$this->license_name}_code";
+			return "{$this->get_storage_name()}_code";
 		}
 
 		/**
@@ -344,7 +404,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 * @return string
 		 */
 		public function get_license_data_key() {
-			return "{$this->license_name}_data";
+			return "{$this->get_storage_name()}_data";
 		}
 
 		/**
@@ -355,7 +415,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 * @return string
 		 */
 		public function get_updates_cache_key() {
-			return "{$this->license_name}_updates_cache";
+			return "{$this->get_storage_name()}_updates_cache";
 		}
 
 		/**
@@ -366,7 +426,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 * @return string
 		 */
 		public function get_details_cache_key() {
-			return "{$this->license_name}_details_cache";
+			return "{$this->get_storage_name()}_details_cache";
 		}
 
 
