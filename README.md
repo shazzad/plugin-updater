@@ -242,6 +242,18 @@ Alternatively, `setMetaCallback()` accepts a single closure that builds the whol
 - The site admin name and email are always sent automatically as top-level ping fields (`admin_name`, `admin_email`) — no metadata entries needed for those
 - The server environment is also reported automatically as top-level ping fields (`php_version`, `db_version`, `server_software`) — do not duplicate these in metadata
 
+## Product uid
+
+Multiple plugins may bundle this library as a dependency, and the oldest loaded copy wins the `class_exists()` race — the `setProductUid()` method may not exist in the loaded class. Use a guard to detect it, then call it to store an opaque product uid (format: `prod_…`). When set, licenses are stored under uid-based option keys; when unset, numeric `product_id` behavior is unchanged. On first call, existing id-based licenses are automatically cloned to uid-based keys; old copies are retained until the 1.6 prune release for backward compatibility.
+
+```php
+$integration = new Integration( $api_url, $basename, 6, true );
+
+if ( method_exists( $integration, 'setProductUid' ) ) {
+	$integration->setProductUid( 'prod_xxxxxxxxxxxxxxxxxxxx' );
+}
+```
+
 ## Request Parameters
 
 API requests to `updates`, `details`, and `check_license` include these query parameters:
