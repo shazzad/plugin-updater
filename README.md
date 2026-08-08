@@ -244,10 +244,10 @@ Alternatively, `setMetaCallback()` accepts a single closure that builds the whol
 
 ## Product uid
 
-Multiple plugins may bundle this library as a dependency, and the oldest loaded copy wins the `class_exists()` race — the `setProductUid()` method may not exist in the loaded class. Use a guard to detect it, then call it to store an opaque product uid (format: `prod_…`). When set, licenses are stored under uid-based option keys; when unset, numeric `product_id` behavior is unchanged. On first call, existing id-based licenses are automatically cloned to uid-based keys; old copies are retained until the 1.6 prune release for backward compatibility.
+Multiple plugins may bundle this library as a dependency, and the oldest loaded copy wins the `class_exists()` race — the `setProductUid()` method may not exist in the loaded class. Use a guard to detect it, then call it to set the opaque product uid (format: `prod_…`). When set, API requests address the product by uid instead of the enumerable numeric id, and licenses are stored under uid-based option keys; when unset, numeric `product_id` behavior is unchanged. On first call, existing id-based licenses are automatically cloned to uid-based keys; old copies are retained until the 1.6 prune release for backward compatibility.
 
 ```php
-$integration = new Integration( $api_url, $basename, 6, true );
+$integration = new \Shazzad\PluginUpdater\Integration( $api_url, $basename, 6, true );
 
 if ( method_exists( $integration, 'setProductUid' ) ) {
 	$integration->setProductUid( 'prod_xxxxxxxxxxxxxxxxxxxx' );
