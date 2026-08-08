@@ -286,6 +286,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		public function setProductUid( $product_uid ) {
 			$this->product_uid = $product_uid;
 
+			$this->maybe_migrate_license_storage();
+
 			return $this;
 		}
 
@@ -429,6 +431,64 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 			return "{$this->get_storage_name()}_details_cache";
 		}
 
+		/**
+		 * Retrieves the id-based option key the license code was stored
+		 * under before the uid migration.
+		 *
+		 * @since 1.5
+		 *
+		 * @return string
+		 */
+		public function get_legacy_license_code_key() {
+			return "{$this->license_name}_code";
+		}
+
+		/**
+		 * Retrieves the id-based option key the license data was stored
+		 * under before the uid migration.
+		 *
+		 * @since 1.5
+		 *
+		 * @return string
+		 */
+		public function get_legacy_license_data_key() {
+			return "{$this->license_name}_data";
+		}
+
+		/**
+		 * Clones id-based license options to their uid-based keys.
+		 *
+		 * One-way and self-limiting: once the uid-based code option exists
+		 * the clone never runs again. Old copies stay in place until the
+		 * prune release (1.6). A failed write simply re-runs next load.
+		 *
+		 * @since 1.5
+		 *
+		 * @return void
+		 */
+		public function maybe_migrate_license_storage() {
+			if ( ! $this->license_enabled || ! $this->product_uid ) {
+				return;
+			}
+
+			if ( false !== get_option( $this->get_license_code_key() ) ) {
+				return;
+			}
+
+			$legacy_code = get_option( $this->get_legacy_license_code_key() );
+
+			if ( false === $legacy_code ) {
+				return;
+			}
+
+			update_option( $this->get_license_code_key(), $legacy_code );
+
+			$legacy_data = get_option( $this->get_legacy_license_data_key() );
+
+			if ( false !== $legacy_data ) {
+				update_option( $this->get_license_data_key(), $legacy_data );
+			}
+		}
 
 		/**
 		 * Get license status.
@@ -524,10 +584,16 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 * Deletes the license code from the database.
 		 *
 		 * @since 1.2
+		 * @since 1.5 Also removes the id-based copy when a uid is set, so a
+		 *            deleted license cannot be resurrected by the clone.
 		 *
 		 * @return bool True if the option was deleted, false otherwise.
 		 */
 		public function delete_license_code() {
+			if ( $this->product_uid ) {
+				delete_option( $this->get_legacy_license_code_key() );
+			}
+
 			return delete_option( $this->get_license_code_key() );
 		}
 
@@ -535,10 +601,15 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 * Deletes the license data from the database.
 		 *
 		 * @since 1.2
+		 * @since 1.5 Also removes the id-based copy when a uid is set.
 		 *
 		 * @return bool True if the option was deleted, false otherwise.
 		 */
 		public function delete_license_data() {
+			if ( $this->product_uid ) {
+				delete_option( $this->get_legacy_license_data_key() );
+			}
+
 			return delete_option( $this->get_license_data_key() );
 		}
 
