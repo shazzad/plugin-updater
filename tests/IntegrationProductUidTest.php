@@ -40,10 +40,10 @@ class IntegrationProductUidTest extends TestCase {
 		$integration = $this->create_integration();
 		$integration->setProductUid( 'prod_testuid' );
 
-		$this->assertSame( 'my-pluginprod_testuid_code', $integration->get_license_code_key() );
-		$this->assertSame( 'my-pluginprod_testuid_data', $integration->get_license_data_key() );
-		$this->assertSame( 'my-pluginprod_testuid_updates_cache', $integration->get_updates_cache_key() );
-		$this->assertSame( 'my-pluginprod_testuid_details_cache', $integration->get_details_cache_key() );
+		$this->assertSame( 'prod_testuid_code', $integration->get_license_code_key() );
+		$this->assertSame( 'prod_testuid_data', $integration->get_license_data_key() );
+		$this->assertSame( 'prod_testuid_updates_cache', $integration->get_updates_cache_key() );
+		$this->assertSame( 'prod_testuid_details_cache', $integration->get_details_cache_key() );
 	}
 
 	/** @test */

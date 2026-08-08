@@ -25,8 +25,8 @@ class IntegrationMigrationTest extends TestCase {
 
 		$integration->setProductUid( 'prod_testuid' );
 
-		$this->assertSame( 'ABC-123-DEF', $updates['my-pluginprod_testuid_code'] );
-		$this->assertSame( [ 'status' => 'active' ], $updates['my-pluginprod_testuid_data'] );
+		$this->assertSame( 'ABC-123-DEF', $updates['prod_testuid_code'] );
+		$this->assertSame( [ 'status' => 'active' ], $updates['prod_testuid_data'] );
 	}
 
 	/** @test */
@@ -34,7 +34,7 @@ class IntegrationMigrationTest extends TestCase {
 		$integration = $this->create_integration( [ 'license_enabled' => true ] );
 
 		Functions\when( 'get_option' )->alias( function ( $key ) {
-			if ( 'my-pluginprod_testuid_code' === $key ) {
+			if ( 'prod_testuid_code' === $key ) {
 				return 'ALREADY-THERE';
 			}
 			return 'my-plugin42_code' === $key ? 'ABC-123-DEF' : false;
@@ -81,7 +81,7 @@ class IntegrationMigrationTest extends TestCase {
 
 		$integration->setProductUid( 'prod_testuid' );
 
-		$this->assertSame( [ 'my-pluginprod_testuid_code' => 'ABC-123-DEF' ], $updates );
+		$this->assertSame( [ 'prod_testuid_code' => 'ABC-123-DEF' ], $updates );
 	}
 
 	/** @test */
@@ -90,7 +90,7 @@ class IntegrationMigrationTest extends TestCase {
 
 		// Short-circuit the clone triggered by setProductUid().
 		Functions\when( 'get_option' )->alias( function ( $key ) {
-			return 'my-pluginprod_testuid_code' === $key ? 'ABC-123-DEF' : false;
+			return 'prod_testuid_code' === $key ? 'ABC-123-DEF' : false;
 		} );
 
 		$integration->setProductUid( 'prod_testuid' );
@@ -102,7 +102,7 @@ class IntegrationMigrationTest extends TestCase {
 		} );
 
 		$this->assertTrue( $integration->delete_license_code() );
-		$this->assertSame( [ 'my-plugin42_code', 'my-pluginprod_testuid_code' ], $deleted );
+		$this->assertSame( [ 'my-plugin42_code', 'prod_testuid_code' ], $deleted );
 	}
 
 	/** @test */
@@ -110,7 +110,7 @@ class IntegrationMigrationTest extends TestCase {
 		$integration = $this->create_integration( [ 'license_enabled' => true ] );
 
 		Functions\when( 'get_option' )->alias( function ( $key ) {
-			return 'my-pluginprod_testuid_code' === $key ? 'ABC-123-DEF' : false;
+			return 'prod_testuid_code' === $key ? 'ABC-123-DEF' : false;
 		} );
 
 		$integration->setProductUid( 'prod_testuid' );
@@ -122,6 +122,6 @@ class IntegrationMigrationTest extends TestCase {
 		} );
 
 		$this->assertTrue( $integration->delete_license_data() );
-		$this->assertSame( [ 'my-plugin42_data', 'my-pluginprod_testuid_data' ], $deleted );
+		$this->assertSame( [ 'my-plugin42_data', 'prod_testuid_data' ], $deleted );
 	}
 }

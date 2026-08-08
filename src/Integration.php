@@ -350,8 +350,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		/**
 		 * Resolves the base name for license/cache storage keys.
 		 *
-		 * Uid-based when the uid is set; otherwise the id-based
-		 * `license_name`, which keeps its value for backward compatibility.
+		 * When a uid is set, returns the uid alone (globally unique on its own).
+		 * Otherwise returns the id-based `license_name` for backward compatibility.
 		 *
 		 * @since 1.5
 		 *
@@ -359,7 +359,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 */
 		public function get_storage_name() {
 			if ( $this->product_uid ) {
-				return sanitize_key( "{$this->product_slug}{$this->product_uid}" );
+				return sanitize_key( $this->product_uid );
 			}
 
 			return $this->license_name;
