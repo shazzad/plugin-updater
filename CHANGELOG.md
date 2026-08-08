@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.0 - 2026-08-09
+
+- New: `Integration::setProductUid( $product_uid )` fluent setter — store an opaque product uid (prefix `prod_…`) used for API URLs and license storage keys when set; numeric `product_id` behavior is unchanged when the uid is not set
+- New: on first `setProductUid()` call, existing id-based license options (`_code`, `_data`) are automatically cloned to uid-based keys; old copies are retained until a future 1.6 prune release for backward compatibility
+- Changed: `delete_license_code()` and `delete_license_data()` also remove the corresponding uid-based option copy when `setProductUid()` has been called
+
 ## 1.4.0 - 2026-08-05
 
 - Stop deleting the stored license code when the server answers `invalid_license`. That code is returned for any unmatched code/product pair — a site pointed at the wrong product, a license row removed by mistake — not only for a revoked license, and enforcement is server-side either way, so discarding the customer's only copy of the key achieved nothing. The stored data is now marked `status: invalid` instead, preserving `renewal_url` and the rest
