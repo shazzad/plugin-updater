@@ -58,7 +58,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 			// runs in a request where that hook has already passed.
 			$this->integration->prepare_product_data();
 
-			$request_url = "{$this->integration->api_url}/products/{$this->integration->product_id}/ping";
+			$request_url = "{$this->integration->api_url}/products/{$this->integration->get_api_product_key()}/ping";
 
 			$body = [
 				'product_version' => $this->integration->product_version,
@@ -240,7 +240,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		 * @return array|WP_Error Response data or WP_Error on failure.
 		 */
 		private function request( $method, $args = [], $timeout = 5 ) {
-			$request_url = "{$this->integration->api_url}/products/{$this->integration->product_id}/$method";
+			$request_url = "{$this->integration->api_url}/products/{$this->integration->get_api_product_key()}/$method";
 
 			if ( ! empty( $args ) ) {
 				$request_url = add_query_arg( $args, $request_url );

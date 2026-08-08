@@ -698,4 +698,59 @@ class ClientApiRequestTest extends TestCase {
 		$this->assertIsArray( $result );
 		$this->assertArrayHasKey( 'details', $result );
 	}
+
+	/** @test */
+	public function ping_url_uses_uid_when_set() {
+		$integration = $this->create_integration();
+		$integration->setProductUid( 'prod_testuid' );
+		$this->stub_api_dependencies();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		$fixture      = $this->load_fixture_raw( 'ping-success.json' );
+		$captured_url = null;
+
+		Functions\expect( 'wp_remote_post' )
+			->once()
+			->with( \Mockery::on( function ( $url ) use ( &$captured_url ) {
+				$captured_url = $url;
+				return true;
+			} ), \Mockery::any() )
+			->andReturn( [ 'body' => $fixture ] );
+
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+		$integration->client->ping();
+
+		$this->assertSame(
+			'https://api.example.com/wp-json/wp-repo/v3/products/prod_testuid/ping',
+			$captured_url
+		);
+	}
+
+	/** @test */
+	public function check_license_url_uses_uid_when_set() {
+		$integration = $this->create_integration();
+		$integration->setProductUid( 'prod_testuid' );
+		$this->stub_http_dependencies();
+
+		$body         = '{"status":"active"}';
+		$captured_url = null;
+
+		Functions\expect( 'wp_remote_request' )
+			->once()
+			->with( \Mockery::on( function ( $url ) use ( &$captured_url ) {
+				$captured_url = $url;
+				return true;
+			} ), \Mockery::any() )
+			->andReturn( [ 'body' => $body ] );
+
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $body );
+
+		$integration->client->check_license( 'ABC-123' );
+
+		$this->assertStringContainsString( '/products/prod_testuid/check_license', $captured_url );
+	}
 }
