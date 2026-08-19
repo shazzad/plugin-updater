@@ -193,6 +193,21 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		public $admin;
 
 		/**
+		 * License admin notices instance. Set whenever licensing is enabled.
+		 *
+		 * @var Admin\Notices|null
+		 */
+		public $notices;
+
+		/**
+		 * Plugins-list update-row message instance. Set whenever licensing
+		 * is enabled.
+		 *
+		 * @var Admin\UpdateMessage|null
+		 */
+		public $update_message;
+
+		/**
 		 * Constructor.
 		 *
 		 * @param array $config {
@@ -260,6 +275,11 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 
 			if ( $this->display_menu ) {
 				$this->admin = new Admin\LicensePage( $this );
+			}
+
+			if ( $this->license_enabled ) {
+				$this->notices        = new Admin\Notices( $this );
+				$this->update_message = new Admin\UpdateMessage( $this );
 			}
 
 			if ( $this->product_uid ) {
