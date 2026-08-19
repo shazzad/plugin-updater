@@ -136,4 +136,80 @@ class IntegrationConfigTest extends TestCase {
 		$this->assertInstanceOf( \Shazzad\PluginUpdater\V2\License\Store::class, $integration->store );
 		$this->assertSame( $integration->get_license_code_key(), $integration->store->get_license_code_key() );
 	}
+
+	/** @test */
+	public function meta_and_meta_callback_via_config_populate_properties() {
+		$callback = function () {
+			return [ 'php_version' => '7.4' ];
+		};
+
+		$integration = $this->create_integration( [
+			'meta'          => [ 'memory_limit' => '256M' ],
+			'meta_callback' => $callback,
+		] );
+
+		$this->assertSame( [ 'memory_limit' => '256M' ], $integration->meta );
+		$this->assertSame( $callback, $integration->meta_callback );
+	}
+
+	/** @test */
+	public function fluent_setters_override_config_meta() {
+		$integration = $this->create_integration( [
+			'meta' => [ 'memory_limit' => '256M' ],
+		] );
+
+		$integration->setMeta( [ 'theme' => 'twentytwentyfive' ] );
+
+		$this->assertSame( [ 'theme' => 'twentytwentyfive' ], $integration->meta );
+	}
+
+	/** @test */
+	public function unknown_config_key_triggers_doing_it_wrong_naming_the_key() {
+		$notices = [];
+		Functions\when( '_doing_it_wrong' )->alias( function ( $method, $message, $version ) use ( &$notices ) {
+			$notices[] = $message;
+		} );
+
+		$this->create_integration( [ 'product-uid' => 'prod_typo' ] );
+
+		$this->assertCount( 1, $notices );
+		$this->assertStringContainsString( 'product-uid', $notices[0] );
+	}
+
+	/** @test */
+	public function missing_required_keys_trigger_doing_it_wrong_per_key() {
+		$notices = [];
+		Functions\when( '_doing_it_wrong' )->alias( function ( $method, $message, $version ) use ( &$notices ) {
+			$notices[] = $message;
+		} );
+		Functions\when( 'sanitize_key' )->alias( function ( $key ) {
+			return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( $key ) );
+		} );
+		Functions\when( 'add_action' )->justReturn( true );
+		Functions\when( 'add_filter' )->justReturn( true );
+
+		$integration = new \Shazzad\PluginUpdater\V2\Integration( [] );
+
+		$this->assertCount( 2, $notices );
+		$this->assertStringContainsString( 'api_url', $notices[0] );
+		$this->assertStringContainsString( 'file', $notices[1] );
+		// Construction proceeded despite the notices.
+		$this->assertInstanceOf( \Shazzad\PluginUpdater\V2\Integration::class, $integration );
+	}
+
+	/** @test */
+	public function valid_config_triggers_no_doing_it_wrong() {
+		Functions\expect( '_doing_it_wrong' )->never();
+
+		$this->create_integration( [
+			'product_uid'   => 'prod_testuid',
+			'meta'          => [ 'a' => 'b' ],
+			'meta_callback' => function () {
+				return [];
+			},
+		] );
+
+		// The expectation above is the assertion.
+		$this->assertTrue( true );
+	}
 }

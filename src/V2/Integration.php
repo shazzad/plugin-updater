@@ -207,11 +207,20 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 *     @type array|false $menu        License page settings (`parent`, `label`, `priority`), or
 		 *                                    false to disable the page. Default empty array (page shown
 		 *                                    with defaults when licensing is enabled).
+		 *     @type array       $meta        Static metadata to send with pings. Same effect as setMeta().
+		 *     @type callable    $meta_callback Callback returning metadata at ping time. Same effect as
+		 *                                    setMetaCallback().
 		 * }
+		 *
+		 * Unrecognized config keys and missing required keys (`api_url`, `file`) trigger a
+		 * `_doing_it_wrong()` notice in debug mode; construction always proceeds — a
+		 * misconfigured updater must never fatal the plugin embedding it.
 		 *
 		 * @since 2.0.0
 		 */
 		public function __construct( array $config ) {
+			$this->validate_config( $config );
+
 			$this->api_url         = isset( $config['api_url'] ) ? $config['api_url'] : '';
 			$this->product_file    = isset( $config['file'] ) ? $config['file'] : '';
 			$this->product_id      = isset( $config['product_id'] ) ? $config['product_id'] : '';
@@ -236,6 +245,14 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 
 			$this->license_name = sanitize_key( "{$this->product_slug}{$this->product_id}" );
 
+			if ( isset( $config['meta'] ) && \is_array( $config['meta'] ) ) {
+				$this->meta = $config['meta'];
+			}
+
+			if ( isset( $config['meta_callback'] ) && \is_callable( $config['meta_callback'] ) ) {
+				$this->meta_callback = $config['meta_callback'];
+			}
+
 			$this->store   = new License\Store( $this );
 			$this->client  = new Client( $this );
 			$this->updater = new Updater( $this );
@@ -247,6 +264,43 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 
 			if ( $this->product_uid ) {
 				$this->store->maybe_migrate_license_storage();
+			}
+		}
+
+		/**
+		 * Flags config-array typos and missing required keys in debug mode.
+		 *
+		 * Notices only — construction proceeds regardless, because a broken
+		 * updater must never take the embedding plugin down with it.
+		 *
+		 * @since 2.0.0
+		 *
+		 * @param array $config Constructor config.
+		 * @return void
+		 */
+		private function validate_config( array $config ) {
+			if ( ! \function_exists( '_doing_it_wrong' ) ) {
+				return;
+			}
+
+			$known = [ 'api_url', 'file', 'product_uid', 'product_id', 'license', 'menu', 'meta', 'meta_callback' ];
+
+			foreach ( \array_diff( \array_keys( $config ), $known ) as $unknown ) {
+				_doing_it_wrong(
+					__METHOD__,
+					\sprintf( 'Unrecognized config key "%s".', (string) $unknown ),
+					'2.0.0'
+				);
+			}
+
+			foreach ( [ 'api_url', 'file' ] as $required ) {
+				if ( empty( $config[ $required ] ) ) {
+					_doing_it_wrong(
+						__METHOD__,
+						\sprintf( 'Missing required config key "%s".', $required ),
+						'2.0.0'
+					);
+				}
 			}
 		}
 
