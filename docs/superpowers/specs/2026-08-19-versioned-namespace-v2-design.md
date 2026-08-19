@@ -54,19 +54,27 @@ primary identity (1.5 retrofitted it via a setter):
 ```php
 new Shazzad\PluginUpdater\V2\Integration( [
     'api_url'     => 'https://w4dev.com/wp-json/wp-repo/v3/',
-    'file'        => __FILE__,                    // plugin main file
+    'file'        => __FILE__,                    // __FILE__ or plugin_basename(__FILE__) — both accepted
     'product_uid' => 'prod_xxx',                  // preferred identity
     'product_id'  => 12,                          // optional legacy identity
     'license'     => true,                        // false = free mode
     'menu'        => [ 'parent' => 'plugins.php', 'label' => 'My Plugin License' ],
+    'meta'        => [ 'memory_limit' => ini_get( 'memory_limit' ) ],   // optional
+    'meta_callback' => 'my_plugin_updater_meta',                        // optional
 ] );
 ```
 
-Fluent setters (`setMeta`, `setMetaCallback`) are retained for parity. `setProductUid`
-becomes unnecessary (config key) but stays as a thin alias so ported plugin code diffs stay
-small.
+Fluent setters (`setMeta`, `setMetaCallback`) are retained for parity — `meta` and
+`meta_callback` config keys apply the same values at construction (Shazzad's addition,
+2026-08-19). `setProductUid` becomes unnecessary (config key) but stays as a thin alias so
+ported plugin code diffs stay small.
 
-## Phase 1 scope: the port (this phase → 2.0.0)
+**Config validation:** unrecognized config keys (typos) and missing required keys
+(`api_url`, `file`) each trigger a `_doing_it_wrong()` notice — visible in debug mode, free
+in production, and guarded by `function_exists` for non-WP contexts. Construction always
+proceeds: a misconfigured updater must never fatal the plugin embedding it.
+
+## Phase 1 scope: the port (done 2026-08-19)
 
 Behavior-identical port of the five legacy classes into the layout above. `Integration`'s
 storage/migration/license-data methods (~half its 698 lines) move to `License\Store`;
@@ -75,10 +83,14 @@ constructor surface. All 8 existing test files are ported to `tests/V2/` (adapte
 config-array constructor and moved classes); the legacy tests stay untouched and both suites
 run in CI. PHP 7.4 floor unchanged (WPCS + PHPCompatibility lint must pass on `src/`).
 
-Out of scope for phase 1, queued behind the 2.0.0 release:
+## Phase 2 scope: license visibility (same branch, ships IN 2.0.0)
+
+*Revised 2026-08-19 (Shazzad's call): these ship on `feature/v2-namespace` before the tag,
+so 2.0.0 is the complete package — no interim 1.x or 2.1.0 for them.*
+
 - **Admin notices** (`Admin/Notices.php`): unlicensed → "set license" notice; expired →
   renew notice (with `renewal_url`), shown with or without an update available; dismissible
-  with a one-week snooze. First V2 feature, ~2.1.0.
+  with a one-week snooze.
 - **Update-row message** (`Admin/UpdateMessage.php`): non-dismissible
   `in_plugin_update_message` line explaining the empty package on expired/unlicensed sites.
 

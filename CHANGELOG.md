@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.0.0 - 2026-08-19
+
+The library is now versioned by namespace: the legacy `Shazzad\PluginUpdater` classes in `src/`
+are **frozen** (critical fixes only) and all new development lives in `Shazzad\PluginUpdater\V2`
+under `src/V2/`. Different majors coexist on one site without interacting, which ends the
+first-loader-wins fatal when two plugins bundle different library versions. Existing plugins are
+untouched until they opt in by instantiating the V2 namespace.
+
+- New: `V2\Integration` takes a single config array (`api_url`, `file`, `product_uid`,
+  `product_id`, `license`, `menu`, `meta`, `meta_callback`) instead of positional arguments.
+  `file` accepts `__FILE__` or basename form. Unknown keys, missing `api_url`/`file`, a
+  non-callable `meta_callback`, and `product_uid` without `product_id` each fire
+  `_doing_it_wrong()` — visible in debug, never fatal
+- New: `V2\Admin\Notices` — dismissible admin notices when no license key is set ("enter your
+  license key") or the license has expired ("renew", linking `renewal_url`), shown to users who
+  can update plugins, with a one-week nonce-protected snooze per product per notice type
+- New: `V2\Admin\UpdateMessage` — a line inside the plugins-list update row explaining why the
+  update is unavailable on unlicensed/expired sites
+- Changed (V2): storage/migration/license-data logic moved to `V2\License\Store`; the license
+  admin page is `V2\Admin\LicensePage`. Option keys, transients, and cron hook names are
+  identical to V1, so switching a plugin to V2 keeps every customer's saved license
+- Changed (V2): `Client::ping()` resolves any callable `meta_callback` (V1 only invoked
+  Closures); string values inside `meta` remain data
+- Packaging: `docs/` and `.gitattributes` are export-ignored, so Composer dist installs ship
+  code, README, and changelog only
+
 ## 1.5.0 - 2026-08-09
 
 - New: `Integration::setProductUid( $product_uid )` fluent setter — store an opaque product uid (prefix `prod_…`) used for API URLs and license storage keys when set; numeric `product_id` behavior is unchanged when the uid is not set

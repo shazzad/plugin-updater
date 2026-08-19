@@ -1,0 +1,285 @@
+<?php
+/**
+ * WordPress Plugin Updater API Client.
+ *
+ * @package Shazzad\PluginUpdater\V2
+ * @version 2.0
+ */
+namespace Shazzad\PluginUpdater\V2;
+
+use WP_Error;
+
+if ( ! \defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
+
+	/**
+	 * Class Client
+	 *
+	 * Handles all HTTP communication with the remote API server.
+	 *
+	 * @since 2.0.0
+	 */
+	class Client {
+
+		/**
+		 * Integration instance holding shared state.
+		 *
+		 * @since 2.0.0
+		 *
+		 * @var Integration
+		 */
+		public Integration $integration;
+
+		/**
+		 * Constructor.
+		 *
+		 * @since 2.0.0
+		 *
+		 * @param Integration $integration Integration instance.
+		 */
+		public function __construct( Integration $integration ) {
+			$this->integration = $integration;
+		}
+
+		/**
+		 * Ping the remote API server.
+		 *
+		 * @since 2.0.0
+		 *
+		 * @return array|WP_Error Response data or WP_Error on failure.
+		 */
+		public function ping() {
+			global $wpdb;
+
+			// Fills anything `init` did not get to set — an activation ping
+			// runs in a request where that hook has already passed.
+			$this->integration->prepare_product_data();
+
+			$request_url = "{$this->integration->api_url}/products/{$this->integration->get_api_product_key()}/ping";
+
+			$body = [
+				'product_version' => $this->integration->product_version,
+				'product_status'  => $this->integration->product_status,
+				'wp_url'          => esc_url( site_url( '', 'https' ) ),
+				'wp_locale'       => get_locale(),
+				'wp_version'      => get_bloginfo( 'version', 'display' ),
+				'admin_email'     => $this->integration->admin_email,
+				'admin_name'      => $this->integration->admin_name,
+				'php_version'     => phpversion(),
+				'db_version'      => is_object( $wpdb ) && is_callable( [ $wpdb, 'db_server_info' ] ) ? (string) $wpdb->db_server_info() : '',
+				'server_software' => isset( $_SERVER['SERVER_SOFTWARE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['SERVER_SOFTWARE'] ) ) : '',
+			];
+
+			// Sent so the server can bind this install to its license. Without it
+			// the install row is stored unbound and seat counts stay empty.
+			if ( $this->integration->license_enabled ) {
+				$license = $this->integration->get_license_code();
+				if ( $license ) {
+					$body['license'] = $license;
+				}
+			}
+
+			$meta = [];
+
+			if ( \is_callable( $this->integration->meta_callback ) ) {
+				$callback_meta = \call_user_func( $this->integration->meta_callback );
+				if ( is_array( $callback_meta ) ) {
+					$meta = $callback_meta;
+				}
+			}
+
+			foreach ( $this->integration->meta as $key => $value ) {
+				// Closures and array-callables resolve at ping time; plain strings
+				// stay data even when they happen to name a function ("time").
+				if ( $value instanceof \Closure || ( \is_array( $value ) && \is_callable( $value ) ) ) {
+					$value = \call_user_func( $value );
+				}
+				$meta[ $key ] = $value;
+			}
+
+			if ( ! empty( $meta ) ) {
+				$body['meta'] = $meta;
+			}
+
+			$request = wp_remote_post(
+				$request_url,
+				[
+					'timeout' => 2,
+					'body'    => $body,
+				]
+			);
+
+			if ( is_wp_error( $request ) ) {
+				return $request;
+			}
+
+			$status_code = wp_remote_retrieve_response_code( $request );
+			$body        = wp_remote_retrieve_body( $request );
+			$body        = json_decode( $body, true );
+
+			if ( empty( $body ) ) {
+				return new WP_Error(
+					'wprepo_api_fail',
+					'No response from update server'
+				);
+			}
+
+			if ( $status_code >= 400 ) {
+				return new WP_Error(
+					! empty( $body['code'] ) ? $body['code'] : 'wprepo_api_error',
+					! empty( $body['message'] ) ? $body['message'] : 'API request failed'
+				);
+			}
+
+			return $body;
+		}
+
+		/**
+		 * Check a license against the remote API.
+		 *
+		 * @since 2.0.0
+		 *
+		 * @param string $license License key. Uses stored license if empty.
+		 * @return array|WP_Error Response data or WP_Error on failure.
+		 */
+		public function check_license( $license = '' ) {
+			if ( empty( $license ) ) {
+				$license = $this->integration->get_license_code();
+			}
+
+			$args = [];
+			if ( $license ) {
+				$args['license'] = $license;
+			}
+
+			return $this->request( 'check_license', $args );
+		}
+
+		/**
+		 * Fetch available updates from the remote API.
+		 *
+		 * Uses a short-lived site transient cache to avoid redundant HTTP calls
+		 * when WordPress sets the update_plugins transient multiple times.
+		 *
+		 * @since 2.0.0
+		 *
+		 * @param int $cache_period Cache duration in seconds. Pass 0 to skip caching.
+		 * @return array|WP_Error Response data or WP_Error on failure.
+		 */
+		public function updates( $cache_period = 600 ) {
+			if ( $cache_period > 0 ) {
+				$cache_key = $this->integration->get_updates_cache_key();
+				$cached    = get_site_transient( $cache_key );
+
+				if ( false !== $cached ) {
+					return $cached;
+				}
+			}
+
+			$args = [];
+			if ( $this->integration->license_enabled ) {
+				$license = $this->integration->get_license_code();
+				if ( $license ) {
+					$args['license'] = $license;
+				}
+			}
+
+			$response = $this->request( 'updates', $args );
+
+			if ( $cache_period > 0 && ! is_wp_error( $response ) ) {
+				set_site_transient( $cache_key, $response, $cache_period );
+			}
+
+			return $response;
+		}
+
+		/**
+		 * Fetch plugin details from the remote API.
+		 *
+		 * Uses a short-lived site transient cache to avoid redundant HTTP calls
+		 * from plugins_api and the license admin page.
+		 *
+		 * @since 2.0.0
+		 *
+		 * @param int $cache_period Cache duration in seconds. Pass 0 to skip caching.
+		 * @return array|WP_Error Response data or WP_Error on failure.
+		 */
+		public function details( $cache_period = 600 ) {
+			if ( $cache_period > 0 ) {
+				$cache_key = $this->integration->get_details_cache_key();
+				$cached    = get_site_transient( $cache_key );
+
+				if ( false !== $cached ) {
+					return $cached;
+				}
+			}
+
+			$args = [];
+			if ( $this->integration->license_enabled ) {
+				$license = $this->integration->get_license_code();
+				if ( $license ) {
+					$args['license'] = $license;
+				}
+			}
+
+			$response = $this->request( 'details', $args );
+
+			if ( $cache_period > 0 && ! is_wp_error( $response ) ) {
+				set_site_transient( $cache_key, $response, $cache_period );
+			}
+
+			return $response;
+		}
+
+		/**
+		 * Sends an API request to the remote server.
+		 *
+		 * @since 2.0.0
+		 *
+		 * @param string $method  The API endpoint method.
+		 * @param array  $args    Additional query arguments.
+		 * @param int    $timeout Request timeout in seconds.
+		 * @return array|WP_Error Response data or WP_Error on failure.
+		 */
+		private function request( $method, $args = [], $timeout = 5 ) {
+			$request_url = "{$this->integration->api_url}/products/{$this->integration->get_api_product_key()}/$method";
+
+			if ( ! empty( $args ) ) {
+				$request_url = add_query_arg( $args, $request_url );
+			}
+
+			$request = wp_remote_request(
+				$request_url,
+				[ 'timeout' => $timeout ]
+			);
+
+			if ( is_wp_error( $request ) ) {
+				return $request;
+			}
+
+			$status_code = wp_remote_retrieve_response_code( $request );
+			$body        = wp_remote_retrieve_body( $request );
+			$body        = json_decode( $body, true );
+
+			if ( empty( $body ) ) {
+				return new WP_Error(
+					'wprepo_api_fail',
+					'No response from update server'
+				);
+			}
+
+			if ( $status_code >= 400 ) {
+				return new WP_Error(
+					! empty( $body['code'] ) ? $body['code'] : 'wprepo_api_error',
+					! empty( $body['message'] ) ? $body['message'] : 'API request failed'
+				);
+			}
+
+			return $body;
+		}
+	}
+
+endif;
