@@ -28,6 +28,13 @@ class NoticesTest extends TestCase {
 		Functions\when( 'add_query_arg' )->justReturn( 'http://example.test/wp-admin/plugins.php?wprepo_snooze=my-plugin42' );
 		Functions\when( 'wp_create_nonce' )->justReturn( 'nonce123' );
 
+		// Safe defaults for the plugins-screen check; individual tests
+		// re-stub these. Must be stubbed here unconditionally — once any
+		// test defines them, Brain Monkey keeps the functions defined
+		// process-wide and un-mocked calls throw (see TestCase note).
+		Functions\when( 'get_current_screen' )->justReturn( null );
+		Functions\when( 'get_site_transient' )->justReturn( false );
+
 		Functions\when( 'get_option' )->alias( function ( $key ) use ( $options ) {
 			return array_key_exists( $key, $options ) ? $options[ $key ] : false;
 		} );
@@ -98,6 +105,44 @@ class NoticesTest extends TestCase {
 		$_GET['page'] = 'my-plugin42';
 
 		$this->assertSame( '', $this->render_output( $integration->notices ) );
+	}
+
+	/** @test */
+	public function plugins_screen_notice_defers_to_a_pending_update_row() {
+		$integration = $this->create_integration( [ 'license' => true, 'menu' => [] ] );
+		$this->stub_render_environment();
+		Functions\when( 'get_current_screen' )->justReturn( (object) [ 'id' => 'plugins' ] );
+		Functions\when( 'get_site_transient' )->justReturn( (object) [
+			'response' => [ 'my-plugin/my-plugin.php' => (object) [ 'new_version' => '9.9.9' ] ],
+		] );
+
+		$this->assertSame( '', $this->render_output( $integration->notices ) );
+	}
+
+	/** @test */
+	public function plugins_screen_notice_renders_when_no_update_is_pending() {
+		$integration = $this->create_integration( [ 'license' => true, 'menu' => [] ] );
+		$this->stub_render_environment();
+		Functions\when( 'get_current_screen' )->justReturn( (object) [ 'id' => 'plugins' ] );
+		Functions\when( 'get_site_transient' )->justReturn( (object) [ 'response' => [] ] );
+
+		$output = $this->render_output( $integration->notices );
+
+		$this->assertStringContainsString( 'enter your license key', $output );
+	}
+
+	/** @test */
+	public function other_screens_render_the_notice_even_with_a_pending_update() {
+		$integration = $this->create_integration( [ 'license' => true, 'menu' => [] ] );
+		$this->stub_render_environment();
+		Functions\when( 'get_current_screen' )->justReturn( (object) [ 'id' => 'dashboard' ] );
+		Functions\when( 'get_site_transient' )->justReturn( (object) [
+			'response' => [ 'my-plugin/my-plugin.php' => (object) [ 'new_version' => '9.9.9' ] ],
+		] );
+
+		$output = $this->render_output( $integration->notices );
+
+		$this->assertStringContainsString( 'enter your license key', $output );
 	}
 
 	/** @test */

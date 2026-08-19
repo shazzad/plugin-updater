@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.1 - 2026-08-19
+
+- The license admin notice now steps aside on the plugins list screen while an update for the
+  product is pending there — the update row already carries the same message (via
+  `V2\Admin\UpdateMessage`), so the screen showed the explanation twice. With no pending
+  update the row message doesn't exist, so the notice still renders; every other screen is
+  unaffected
+
 ## 2.0.0 - 2026-08-19
 
 The library is now versioned by namespace: the legacy `Shazzad\PluginUpdater` classes in `src/`

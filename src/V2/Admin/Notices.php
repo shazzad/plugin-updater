@@ -149,6 +149,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notices' ) ) :
 				return;
 			}
 
+			if ( $this->is_covered_by_update_row() ) {
+				return;
+			}
+
 			$name = $this->integration->product_name
 				? $this->integration->product_name
 				: $this->integration->product_slug;
@@ -231,6 +235,39 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notices' ) ) :
 			update_option( $this->get_snooze_key( $type ), time() + self::SNOOZE_SECONDS, false );
 
 			$this->redirect( remove_query_arg( [ 'wprepo_snooze', 'wprepo_snooze_type', '_wpnonce' ] ) );
+		}
+
+		/**
+		 * Whether the plugins list screen's update row already carries this
+		 * product's license message, making the top notice redundant there.
+		 *
+		 * UpdateMessage renders inside the plugin's update row, which only
+		 * exists while an update is pending — so on a plugins screen without
+		 * a pending update the notice still renders, and on every other
+		 * screen this check never suppresses anything.
+		 *
+		 * @since 2.0.1
+		 *
+		 * @return bool
+		 */
+		public function is_covered_by_update_row() {
+			if ( ! \function_exists( 'get_current_screen' ) ) {
+				return false;
+			}
+
+			$screen = get_current_screen();
+
+			if ( ! $screen || ! \in_array( $screen->id, [ 'plugins', 'plugins-network' ], true ) ) {
+				return false;
+			}
+
+			$updates = get_site_transient( 'update_plugins' );
+
+			if ( empty( $updates->response ) || ! \is_array( $updates->response ) ) {
+				return false;
+			}
+
+			return isset( $updates->response[ $this->integration->product_file ] );
 		}
 
 		/**
