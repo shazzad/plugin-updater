@@ -157,30 +157,33 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		/**
 		 * License/option storage instance.
 		 *
+		 * Untyped on purpose, like the other subsystem properties: tests and
+		 * consumer code swap stand-ins into these seams.
+		 *
 		 * @var License\Store
 		 */
-		public License\Store $store;
+		public $store;
 
 		/**
 		 * API client instance.
 		 *
 		 * @var Client
 		 */
-		public Client $client;
+		public $client;
 
 		/**
 		 * Updater instance.
 		 *
 		 * @var Updater
 		 */
-		public Updater $updater;
+		public $updater;
 
 		/**
 		 * Tracker instance.
 		 *
 		 * @var Tracker
 		 */
-		public Tracker $tracker;
+		public $tracker;
 
 		/**
 		 * License page instance.
