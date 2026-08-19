@@ -95,6 +95,7 @@ class IntegrationConfigTest extends TestCase {
 		} );
 		Functions\when( 'add_action' )->justReturn( true );
 		Functions\when( 'add_filter' )->justReturn( true );
+		Functions\when( 'plugin_basename' )->returnArg();
 
 		$integration = new \Shazzad\PluginUpdater\V2\Integration( $config );
 
@@ -211,5 +212,94 @@ class IntegrationConfigTest extends TestCase {
 
 		// The expectation above is the assertion.
 		$this->assertTrue( true );
+	}
+
+	/** @test */
+	public function uid_without_id_when_licensed_triggers_doing_it_wrong() {
+		$notices = [];
+		Functions\when( '_doing_it_wrong' )->alias( function ( $method, $message, $version ) use ( &$notices ) {
+			$notices[] = $message;
+		} );
+		// uid + license runs the storage migration at construction.
+		Functions\when( 'get_option' )->justReturn( false );
+		Functions\when( 'update_option' )->justReturn( true );
+
+		$this->create_integration( [
+			'license'     => true,
+			'product_uid' => 'prod_testuid',
+			'product_id'  => '',
+		] );
+
+		$this->assertCount( 1, $notices );
+		$this->assertStringContainsString( 'product_uid', $notices[0] );
+		$this->assertStringContainsString( 'product_id', $notices[0] );
+	}
+
+	/** @test */
+	public function uid_without_id_is_silent_when_license_disabled() {
+		Functions\expect( '_doing_it_wrong' )->never();
+
+		$this->create_integration( [
+			'product_uid' => 'prod_testuid',
+			'product_id'  => '',
+		] );
+
+		$this->assertTrue( true );
+	}
+
+	/** @test */
+	public function file_config_accepts_absolute_path_via_plugin_basename() {
+		$integration = $this->create_integration( [
+			'file' => '/var/www/wp-content/plugins/my-plugin/my-plugin.php',
+		] );
+
+		$this->assertSame( 'my-plugin/my-plugin.php', $integration->product_file );
+		$this->assertSame( 'my-plugin', $integration->product_slug );
+		$this->assertSame( 'my-plugin42', $integration->license_name );
+
+		// Idempotent on input already in basename form.
+		$relative = $this->create_integration();
+		$this->assertSame( 'my-plugin/my-plugin.php', $relative->product_file );
+	}
+
+	/** @test */
+	public function falsy_non_array_menu_hides_license_page() {
+		foreach ( [ false, null, 0, '' ] as $falsy ) {
+			$integration = $this->create_integration( [
+				'license' => true,
+				'menu'    => $falsy,
+			] );
+
+			$this->assertFalse( $integration->display_menu, var_export( $falsy, true ) );
+			$this->assertNull( $integration->admin, var_export( $falsy, true ) );
+		}
+	}
+
+	/** @test */
+	public function empty_array_menu_shows_license_page() {
+		// The absent-key case is covered by menu_defaults_on_when_license_enabled_and_menu_omitted.
+		$integration = $this->create_integration( [
+			'license' => true,
+			'menu'    => [],
+		] );
+
+		$this->assertTrue( $integration->display_menu );
+		$this->assertInstanceOf( \Shazzad\PluginUpdater\V2\Admin\LicensePage::class, $integration->admin );
+	}
+
+	/** @test */
+	public function non_callable_meta_callback_triggers_notice_and_is_ignored() {
+		$notices = [];
+		Functions\when( '_doing_it_wrong' )->alias( function ( $method, $message, $version ) use ( &$notices ) {
+			$notices[] = $message;
+		} );
+
+		$integration = $this->create_integration( [
+			'meta_callback' => 'not_a_real_function_xyz',
+		] );
+
+		$this->assertCount( 1, $notices );
+		$this->assertStringContainsString( 'meta_callback', $notices[0] );
+		$this->assertNull( $integration->meta_callback );
 	}
 }

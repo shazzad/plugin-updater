@@ -54,7 +54,7 @@ primary identity (1.5 retrofitted it via a setter):
 ```php
 new Shazzad\PluginUpdater\V2\Integration( [
     'api_url'     => 'https://w4dev.com/wp-json/wp-repo/v3/',
-    'file'        => __FILE__,                    // plugin main file
+    'file'        => __FILE__,                    // __FILE__ or plugin_basename(__FILE__) — both accepted
     'product_uid' => 'prod_xxx',                  // preferred identity
     'product_id'  => 12,                          // optional legacy identity
     'license'     => true,                        // false = free mode

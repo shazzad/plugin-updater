@@ -753,4 +753,80 @@ class ClientApiRequestTest extends TestCase {
 
 		$this->assertStringContainsString( '/products/prod_testuid/check_license', $captured_url );
 	}
+
+	/**
+	 * Named meta provider so a plain string callable can be exercised.
+	 */
+	public static function meta_provider(): array {
+		return [ 'provided' => 'by-string-callable' ];
+	}
+
+	/** @test */
+	public function ping_invokes_string_meta_callback() {
+		$integration = $this->create_integration( [
+			'meta_callback' => [ self::class, 'meta_provider' ],
+		] );
+		// String callable form, set after construction like a consumer might.
+		$integration->meta_callback = self::class . '::meta_provider';
+
+		$this->stub_api_dependencies();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		$fixture       = $this->load_fixture_raw( 'ping-success.json' );
+		$captured_args = null;
+
+		Functions\expect( 'wp_remote_post' )
+			->once()
+			->with( \Mockery::any(), \Mockery::on( function ( $args ) use ( &$captured_args ) {
+				$captured_args = $args;
+				return true;
+			} ) )
+			->andReturn( [ 'body' => $fixture ] );
+
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+		$integration->client->ping();
+
+		$this->assertSame( 'by-string-callable', $captured_args['body']['meta']['provided'] );
+	}
+
+	/** @test */
+	public function ping_resolves_callable_meta_values_but_keeps_string_values_as_data() {
+		$integration = $this->create_integration( [
+			'meta' => [
+				'from_closure'  => function () {
+					return 'closure-value';
+				},
+				'from_array_cb' => [ self::class, 'meta_provider' ],
+				'plain_string'  => 'time', // names a PHP function, must stay data
+			],
+		] );
+
+		$this->stub_api_dependencies();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		$fixture       = $this->load_fixture_raw( 'ping-success.json' );
+		$captured_args = null;
+
+		Functions\expect( 'wp_remote_post' )
+			->once()
+			->with( \Mockery::any(), \Mockery::on( function ( $args ) use ( &$captured_args ) {
+				$captured_args = $args;
+				return true;
+			} ) )
+			->andReturn( [ 'body' => $fixture ] );
+
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( $fixture );
+
+		$integration->client->ping();
+
+		$meta = $captured_args['body']['meta'];
+		$this->assertSame( 'closure-value', $meta['from_closure'] );
+		$this->assertSame( [ 'provided' => 'by-string-callable' ], $meta['from_array_cb'] );
+		$this->assertSame( 'time', $meta['plain_string'] );
+	}
 }

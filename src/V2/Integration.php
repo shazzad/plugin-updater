@@ -214,7 +214,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 *     Integration configuration.
 		 *
 		 *     @type string      $api_url     URL of the API server. Required.
-		 *     @type string      $file        Plugin file path (e.g., "my-plugin/my-plugin.php"). Required.
+		 *     @type string      $file        Plugin main file: __FILE__ or its plugin_basename() form
+		 *                                    ("my-plugin/my-plugin.php") — both accepted. Required.
 		 *     @type string      $product_uid Opaque `prod_…` uid on the remote server. Preferred identity.
 		 *     @type string      $product_id  Numeric product id on the remote server. Optional legacy identity;
 		 *                                    required to reach license options stored under id-based keys.
@@ -243,8 +244,17 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 			$this->product_status  = 'active';
 			$this->license_enabled = ! empty( $config['license'] );
 
+			// Accept either __FILE__ or an already-relative plugin_basename() form:
+			// plugin_basename() is idempotent on relative "dir/file.php" input, and
+			// a raw absolute path would poison storage keys and hook names.
+			if ( $this->product_file && \function_exists( 'plugin_basename' ) ) {
+				$this->product_file = plugin_basename( $this->product_file );
+			}
+
+			// A falsy non-array `menu` hides the license page (V1 truthiness
+			// semantics); an array — even empty — or an absent key shows it.
 			$menu               = \array_key_exists( 'menu', $config ) ? $config['menu'] : [];
-			$this->display_menu = $this->license_enabled ? ( false !== $menu ) : false;
+			$this->display_menu = $this->license_enabled && ( \is_array( $menu ) || (bool) $menu );
 
 			$menu = \is_array( $menu ) ? $menu : [];
 
@@ -321,6 +331,25 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 						'2.0.0'
 					);
 				}
+			}
+
+			if ( ! empty( $config['license'] ) && ! empty( $config['product_uid'] ) && empty( $config['product_id'] ) ) {
+				_doing_it_wrong(
+					__METHOD__,
+					'Config sets "product_uid" without "product_id". A plugin previously shipped on the V1'
+					. ' (unversioned) library must pass "product_id" too, or its storage and cron identity'
+					. ' changes and existing customer licenses are never migrated. Uid-only is fine for'
+					. ' plugins that never shipped with V1.',
+					'2.0.0'
+				);
+			}
+
+			if ( isset( $config['meta_callback'] ) && ! \is_callable( $config['meta_callback'] ) ) {
+				_doing_it_wrong(
+					__METHOD__,
+					'Config key "meta_callback" is not callable and will be ignored.',
+					'2.0.0'
+				);
 			}
 		}
 

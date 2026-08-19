@@ -84,15 +84,20 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 
 			$meta = [];
 
-			if ( $this->integration->meta_callback instanceof \Closure ) {
-				$callback_meta = ( $this->integration->meta_callback )();
+			if ( \is_callable( $this->integration->meta_callback ) ) {
+				$callback_meta = \call_user_func( $this->integration->meta_callback );
 				if ( is_array( $callback_meta ) ) {
 					$meta = $callback_meta;
 				}
 			}
 
 			foreach ( $this->integration->meta as $key => $value ) {
-				$meta[ $key ] = $value instanceof \Closure ? $value() : $value;
+				// Closures and array-callables resolve at ping time; plain strings
+				// stay data even when they happen to name a function ("time").
+				if ( $value instanceof \Closure || ( \is_array( $value ) && \is_callable( $value ) ) ) {
+					$value = \call_user_func( $value );
+				}
+				$meta[ $key ] = $value;
 			}
 
 			if ( ! empty( $meta ) ) {

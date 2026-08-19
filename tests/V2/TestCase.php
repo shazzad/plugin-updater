@@ -60,6 +60,14 @@ abstract class TestCase extends PHPUnitTestCase {
 			return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( $key ) );
 		} );
 
+		// WP-faithful enough for tests: strips the (fake) plugins dir from
+		// absolute paths, passes relative input through. Must be stubbed
+		// unconditionally: once any test defines it, Brain Monkey keeps the
+		// function defined process-wide and un-mocked calls throw.
+		Functions\when( 'plugin_basename' )->alias( function ( $file ) {
+			return ltrim( str_replace( '/var/www/wp-content/plugins/', '', $file ), '/' );
+		} );
+
 		Functions\when( 'add_action' )->justReturn( true );
 		Functions\when( 'add_filter' )->justReturn( true );
 
