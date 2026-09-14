@@ -357,7 +357,7 @@ When licensing is enabled, the updater adds an admin page with:
 - Direct upgrade buttons
 - Changelog and upgrade notices
 
-V2 additionally shows, to users with the `update_plugins` capability, a dismissible admin notice when no license key is saved, snoozable for one week per product. An expired license gets no sitewide notice (since 2.1.0); its status and `renewal_url` link show on the license page and in the update row. V2 also shows plus an explanation line inside the plugin's update row on the Plugins screen when the update package is withheld.
+V2 additionally shows, to users with the `update_plugins` capability, a dismissible admin notice when no license key is saved, snoozable for one week per product. An expired license gets no sitewide notice (since 2.1.0); its status and `renewal_url` link show on the license page and in the update row. V2 also shows an explanation line inside the plugin's update row on the Plugins screen when the update package is withheld.
 
 ### Menu Placement
 
