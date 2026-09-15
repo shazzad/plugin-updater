@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.1.0 - 2026-09-15
+
+- Changed (V2): an expired license no longer shows a sitewide admin notice. `V2\Admin\Notices`
+  now nags only when no license key is saved. An expired plugin keeps working and only stops
+  receiving updates, so a notice on every admin screen that returned weekly after dismissal
+  was more nag than help. Expiry still shows where the product lives: the license page (status
+  and `renewal_url` link) and the plugins-list update row (`V2\Admin\UpdateMessage`).
+  `get_license_status()` and `get_license_renewal_url()` are unchanged
+- Sites that snoozed the old expired notice keep a harmless `{storage}_notice_snooze_expired`
+  option; nothing reads it any more and no migration removes it
+
 ## 2.0.1 - 2026-08-19
 
 - The license admin notice now steps aside on the plugins list screen while an update for the
