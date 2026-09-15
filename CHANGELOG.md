@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.1 - 2026-09-15
+
+- Restored (V2): the sitewide expired-license admin notice is back, exactly as in 2.0.1. 2.1.0
+  had removed it, but the updater is shared by many products and that change was meant for one
+  product only, so it was reverted. Both notices (no license key, expired license) behave as they
+  did in 2.0.1, including the one-week snooze
+- 2.1.0 was tagged briefly on 2026-09-15 and then withdrawn (tag and release deleted), so there is
+  no 2.1.0 to install. Sites never received it
+
 ## 2.0.1 - 2026-08-19
 
 - The license admin notice now steps aside on the plugins list screen while an update for the
