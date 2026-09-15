@@ -5,8 +5,7 @@ use Brain\Monkey\Functions;
 use Shazzad\PluginUpdater\V2\Admin\Notices;
 
 /**
- * V2-only coverage: the sitewide "enter your license key" notice with its
- * one-week snooze. An expired license never gets a sitewide notice.
+ * V2-only coverage: sitewide license notices with the one-week snooze.
  */
 class NoticesTest extends TestCase {
 
@@ -62,8 +61,8 @@ class NoticesTest extends TestCase {
 	}
 
 	/** @test */
-	public function renders_nothing_when_license_is_expired() {
-		$integration = $this->create_integration( [ 'license' => true, 'menu' => [] ] );
+	public function renders_renew_notice_with_renewal_link_when_expired() {
+		$integration = $this->create_integration( [ 'license' => true ] );
 		$this->stub_render_environment( [
 			'my-plugin42_code' => 'ABC-123',
 			'my-plugin42_data' => [
@@ -72,18 +71,11 @@ class NoticesTest extends TestCase {
 			],
 		] );
 
-		$this->assertSame( '', $this->render_output( $integration->notices ) );
-	}
+		$output = $this->render_output( $integration->notices );
 
-	/** @test */
-	public function expired_license_has_no_notice_type() {
-		$integration = $this->create_integration( [ 'license' => true ] );
-		$this->stub_render_environment( [
-			'my-plugin42_code' => 'ABC-123',
-			'my-plugin42_data' => [ 'status' => 'expired' ],
-		] );
-
-		$this->assertSame( '', $integration->notices->get_notice_type() );
+		$this->assertStringContainsString( 'your license has expired', $output );
+		$this->assertStringContainsString( 'https://portal.example.test/renew', $output );
+		$this->assertStringContainsString( 'Renew your license', $output );
 	}
 
 	/** @test */
@@ -243,19 +235,6 @@ class NoticesTest extends TestCase {
 
 		$this->stub_snooze_request( 'someone-else7', 'unlicensed' );
 		Functions\expect( 'wp_verify_nonce' )->never();
-		Functions\expect( 'update_option' )->never();
-
-		$notices->handle_snooze();
-
-		$this->assertNull( $notices->redirected );
-	}
-
-	/** @test */
-	public function snooze_handler_ignores_the_removed_expired_type() {
-		$integration = $this->create_integration( [ 'license' => true ] );
-		$notices     = $this->create_testable_notices( $integration );
-
-		$this->stub_snooze_request( 'my-plugin42', 'expired' );
 		Functions\expect( 'update_option' )->never();
 
 		$notices->handle_snooze();

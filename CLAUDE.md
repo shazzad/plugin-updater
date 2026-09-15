@@ -64,9 +64,8 @@ Subsystems are public properties:
 - **`$admin`** (`Admin/LicensePage.php`) — License page; only when `license` is on and `menu`
   is not `false`.
 - **`$notices`** (`Admin/Notices.php`) — Whenever `license` is on: dismissible "enter your
-  license key" admin notice for users with `update_plugins`, one-week nonce-protected snooze
-  per product per notice type. No sitewide notice for an expired license (removed in 2.1.0,
-  decided 2026-09-15): expiry shows only on the license page and in the update row. Steps aside on the plugins
+  license key" / "license expired — renew" admin notices for users with `update_plugins`,
+  one-week nonce-protected snooze per product per notice type. Steps aside on the plugins
   list while an update row for the product already carries the message.
 - **`$update_message`** (`Admin/UpdateMessage.php`) — Whenever `license` is on: an
   `in_plugin_update_message-{file}` line explaining why the update package is missing on

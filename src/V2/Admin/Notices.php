@@ -18,16 +18,12 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notices' ) ) :
 	/**
 	 * Class Notices
 	 *
-	 * Renders a sitewide admin notice when no license key is saved, the one
-	 * state a customer can miss entirely. The notice is dismissible for one
-	 * week, per product and per notice type, stored site-wide.
-	 *
-	 * An expired license deliberately gets no sitewide notice: the plugin
-	 * keeps working, and its state already shows on the license page and in
-	 * the plugins-list update row (UpdateMessage).
+	 * Renders sitewide admin notices when the site cannot receive updates:
+	 * no license key saved, or the saved license has expired. Each notice is
+	 * dismissible for one week, per product and per notice type, stored
+	 * site-wide.
 	 *
 	 * @since 2.0.0
-	 * @since 2.1.0 The expired-license notice was removed.
 	 */
 	class Notices {
 
@@ -45,11 +41,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notices' ) ) :
 		 * Notice types this class knows how to render.
 		 *
 		 * @since 2.0.0
-		 * @since 2.1.0 `expired` removed.
 		 *
 		 * @var string[]
 		 */
-		const TYPES = [ 'unlicensed' ];
+		const TYPES = [ 'unlicensed', 'expired' ];
 
 		/**
 		 * Integration instance holding shared state.
@@ -77,13 +72,12 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notices' ) ) :
 		/**
 		 * Resolves which notice, if any, applies right now.
 		 *
-		 * Only a missing license key produces a notice. An expired license
-		 * returns '' like an active one.
+		 * The two states are mutually exclusive: a site without a license key
+		 * has no stored status worth reporting, so `unlicensed` wins.
 		 *
 		 * @since 2.0.0
-		 * @since 2.1.0 No longer returns `expired`.
 		 *
-		 * @return string 'unlicensed', or '' when no notice applies.
+		 * @return string 'unlicensed', 'expired', or '' when no notice applies.
 		 */
 		public function get_notice_type() {
 			if ( ! $this->integration->license_enabled ) {
@@ -92,6 +86,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notices' ) ) :
 
 			if ( ! $this->integration->has_license_code() ) {
 				return 'unlicensed';
+			}
+
+			if ( 'expired' === $this->integration->get_license_status() ) {
+				return 'expired';
 			}
 
 			return '';
@@ -159,19 +157,36 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notices' ) ) :
 				? $this->integration->product_name
 				: $this->integration->product_slug;
 
-			$license_url = $this->get_license_page_url();
+			if ( 'unlicensed' === $type ) {
+				$license_url = $this->get_license_page_url();
 
-			if ( $license_url ) {
-				$message = \sprintf(
-					'<strong>%s</strong>: <a href="%s">enter your license key</a> to enable plugin updates.',
-					esc_html( $name ),
-					esc_url( $license_url )
-				);
+				if ( $license_url ) {
+					$message = \sprintf(
+						'<strong>%s</strong>: <a href="%s">enter your license key</a> to enable plugin updates.',
+						esc_html( $name ),
+						esc_url( $license_url )
+					);
+				} else {
+					$message = \sprintf(
+						'<strong>%s</strong>: enter your license key to enable plugin updates.',
+						esc_html( $name )
+					);
+				}
 			} else {
-				$message = \sprintf(
-					'<strong>%s</strong>: enter your license key to enable plugin updates.',
-					esc_html( $name )
-				);
+				$renewal_url = $this->integration->get_license_renewal_url();
+
+				if ( $renewal_url ) {
+					$message = \sprintf(
+						'<strong>%s</strong>: your license has expired. <a href="%s">Renew your license</a> to keep receiving updates.',
+						esc_html( $name ),
+						esc_url( $renewal_url )
+					);
+				} else {
+					$message = \sprintf(
+						'<strong>%s</strong>: your license has expired. Renew your license to keep receiving updates.',
+						esc_html( $name )
+					);
+				}
 			}
 
 			\printf(
