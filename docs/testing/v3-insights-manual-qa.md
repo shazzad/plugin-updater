@@ -173,3 +173,6 @@ git -C shazzad-plugin-repo switch fix/versioned-download-url   # back to your #7
 - The free products on the repo server (Adminkeep later) need a product row with **Track
   install** on and no versions uploaded.
 - plugin-updater releases as **3.0.0** (CHANGELOG entry is ready, marked unreleased).
+- Separate from this feature, shazzad/plugin-repo#78 tightens how the **existing** v3 API looks
+  up license codes and install URLs (found during this review). It is independent of #77, and
+  the plan is to review and deploy it on its own, ideally first.
