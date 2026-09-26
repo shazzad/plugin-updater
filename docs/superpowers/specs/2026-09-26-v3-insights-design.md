@@ -172,9 +172,14 @@ run retries).
   `wp_url_key` via `Install\Data::create_install()`), including `admin_email`/`admin_name`,
   env columns and — only when `license` is present — the license binding. `meta` goes to
   `installmeta` (as today). Everything else goes to the new `install_insights` row. Returns 202.
-- `POST /products/{key}/optout` — `{ site_url, token }`. Only when the stored token matches:
-  deletes the install row, its meta, its insights row and its install events. 202 either way
-  (no oracle for which sites exist).
+- `POST /products/{key}/optout` — `{ site_url, token }`. Only when the stored token matches and
+  the row's mode is `consent`: if an Insights track created the install row (`owns_install`),
+  deletes the install row, its meta, its insights row and its install events; otherwise (the row
+  came from the old v3 ping) removes only the insights row. Commercial rows are never deleted
+  this way. 202 either way (no oracle for which sites exist); 413 over 64 KB.
+- Both routes reject site URLs containing a query-builder reserved value (`__empty__`,
+  `__not_empty__`, …) and treat such license codes, or an empty one, as "no license".
+  Bodies over 64 KB get 413. (Review fixes 2026-09-26; see plugin-repo#77.)
 
 ### Table `{prefix}wprepo_install_insights`
 
@@ -182,8 +187,11 @@ run retries).
 `is_local`, `multisite`, `theme`, `users_total`, `active_plugins`, `inactive_plugins`, `data`
 (longtext JSON: wp, server, users, plugins), `last_event`, `created`, `updated`; KEY `product_id`.
 Created by `Installer::install_tables()`; DB version bumped so `maybe_upgrade_db()` adds it on
-deploy. Track replaces the token hash (last writer wins — spoofing risk equals the existing
-open ping); optout requires it.
+deploy (`Installer::DB_VERSION`, stamped only once the table exists). Plus `owns_install`
+(1 when an Insights track created the install row). The token is **first writer wins**: stored
+when the insights row is created, never replaced by a track with a different token (such a track
+still updates the data, as the open ping does); only the stored token can change `mode`.
+Optout requires it.
 
 ### Admin
 

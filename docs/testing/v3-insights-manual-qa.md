@@ -47,7 +47,7 @@ wpc eval 'Shazzad\PluginRepo\Plugin::get_instance()->maybe_upgrade_db();'   # cr
 for t in insights-track insights-optout install-dedupe; do
   wpc eval-file wp-content/plugins/shazzad-plugin-repo/tests/$t-test.php | tail -1
 done
-# expect: "83 passed, 0 failed", "32 passed, 0 failed", "34 passed, 0 failed"
+# expect: "110 passed, 0 failed", "57 passed, 0 failed", "34 passed, 0 failed"
 
 # end to end: real HTTP from two fixture plugins to the local server
 shazzad-plugin-updater-test/bin/insights-e2e | tail -1
