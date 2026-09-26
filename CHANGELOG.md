@@ -1,5 +1,37 @@
 # Changelog
 
+## 3.0.0 - Unreleased
+
+New `Shazzad\PluginUpdater\V3` namespace under `src/V3/`: consent-based usage tracking
+("Insights") for free plugins, and a commercial entry point that tracks through the same
+Insights parts. V1 (`src/`) and V2 (`src/V2/`) are byte-identical to 2.1.1 — plugins on them see
+no change; V2 is now stable (additive fixes only) and V3 takes new development.
+
+- New: `V3\Insights` — free wordpress.org plugin entry point. Appsero-style consent notice
+  (Allow / No thanks, nonce'd, `manage_options`), nothing sent before consent, then a daily
+  `wprepo_insights_track_{slug}` track plus `activate` / `deactivate` / `upgrade` / `optin`
+  events to `wp-repo-insights/v1/products/{key}/track`; `opt_out()` asks the server to delete
+  the site's data. Loads no update or license code; free plugins ship only
+  `src/V3/Insights.php` + `src/V3/Insights/` (README has the build strip recipe)
+- New: `V3\Insights\{Consent,Collector,Client,Scheduler,Notice}` — consent state + install
+  token; payload builder (site, admin, WordPress + theme, server, users by role, plugins with
+  the active list capped at 200, meta, license); the HTTP client, which refuses to send without
+  consent; the scheduler; the notice
+- New: `V3\Integration` — commercial entry point. Same config, storage keys, transients, cron
+  hook, license page, notices and update-row message as V2 (moving V2 → V3 keeps every saved
+  license), plus optional `insights_api_url` (default derived from `api_url`: `/wp-repo/v3` →
+  `/wp-repo-insights/v1`; an underivable `api_url` fires `_doing_it_wrong()` and leaves
+  tracking off). Tracking runs through the Insights parts in commercial mode — no consent step,
+  no notice, license key included — exposed as `$insights_consent`, `$insights_collector`,
+  `$insights_client`, `$insights_scheduler`
+- Changed (V3 vs V2): `Client::ping()` removed. The hourly `wprepo_sync_license_data_{name}`
+  sync only checks the license; activation, deactivation and upgrade refresh caches and leave
+  the (single) track to the Insights scheduler. `admin_email` / `admin_name` left
+  `Integration` (the collector reads them at send time); `meta` / `meta_callback` /
+  `setMeta()` / `setMetaCallback()` now feed the Insights payload
+- Requires the server side from `shazzad/plugin-repo` (`wp-repo-insights/v1` `track` +
+  `optout`)
+
 ## 2.1.1 - 2026-09-15
 
 - Restored (V2): the sitewide expired-license admin notice is back, exactly as in 2.0.1. 2.1.0
