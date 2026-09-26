@@ -85,10 +85,28 @@ screens, while consent is unset:
 > Want to help make **Adminkeep** even better? Allow Adminkeep to collect diagnostic data and
 > usage information. (what we collect) [Allow] [No thanks]
 
-"what we collect" is a `<details>` element (no JavaScript, no jQuery) listing: server environment
-details (PHP, MySQL, server, WordPress versions); number of users on your site; site language;
-number of active and inactive plugins; active plugins' names; site name and URL; **your name and
-email address**; plus a "Learn more" link to `privacy_url` when set.
+"what we collect" is a `<details>` element (no JavaScript, no jQuery). The notice is the consent,
+so it lists every group of the payload (revised after review, 2026-09-26 — the first list
+under-disclosed):
+
+- Site name, URL and language, whether it is a multisite, and whether it looks like a local
+  development site
+- **Your site's admin email address and administrator name** (the `admin_email` option and the
+  first administrator's display name — not the user who clicks Allow)
+- WordPress version, memory limit and debug mode
+- Active theme (name, version and parent theme)
+- Server environment details (PHP and MySQL versions, server software, PHP memory, execution
+  time and upload limits)
+- Number of users on your site, by role
+- Number of active and inactive plugins, and the names and versions of active plugins
+- "Usage statistics specific to {name}" — added automatically when `meta` or `meta_callback`
+  is configured
+- any extra lines from the `notice.items` config key (strings; non-strings and empty strings
+  are dropped with a `_doing_it_wrong()` notice) — for plugins to spell out what their `meta`
+  holds
+
+plus a "Learn more" link to `privacy_url` when set. `Notice::get_collected_items()` must stay in
+step with `Collector::collect()`; `NoticeTest::discloses_every_payload_group` guards it.
 
 Allow / No thanks are nonce'd GET links handled on `admin_init` (skipped under `wp_doing_ajax()`),
 capability-checked, then redirect back without the query args. Allow → consent `yes`, token
@@ -97,11 +115,26 @@ generated, daily cron scheduled, immediate `optin` track. No thanks → consent 
 ### Options (per plugin, `{slug}` = plugin directory)
 
 `{slug}_insights_consent` (`yes`/`no`), `{slug}_insights_token` (random 32 chars, sent with every
-call, required by optout), `{slug}_insights_last_send` (timestamp). Cron hook
+call, required by optout), `{slug}_insights_last_send` (timestamp), `{slug}_insights_optout_pending`
+(`since` / `last_try` of an opt-out that failed to reach the server). Cron hook
 `wprepo_insights_track_{slug}`, **daily** — not weekly like Appsero, because the server marks an
 install inactive after 7 days without a check-in (`wprepo_deactivate_unused_installs_days`).
 Deactivation sends a `deactivate` track (when consented) and clears the cron; the options stay so
-a re-activation doesn't re-ask. `opt_out()` sends `optout`, sets consent `no`, clears the cron.
+a re-activation doesn't re-ask; a **network** deactivation clears the cron on every site (only
+the current site sends `deactivate`). `opt_out()` sends `optout`, sets consent `no`, clears the
+cron. If the `optout` call fails (timeout, 5xx), consent is still `no` at once but the request is
+kept in `_optout_pending` and retried — on `admin_init` (at most hourly) and by the daily cron,
+which is kept for that — until it succeeds, a new opt-in supersedes it, or 7 days pass since the
+first failure. While pending, the client may send `optout` (only `{site_url, token}`) despite
+consent `no`; tracks stay refused. `Insights::uninstall( $file )` deletes all four options and
+the cron, on every site of a network; plugins call it from `uninstall.php` /
+`register_uninstall_hook()`.
+
+Commercial installs have a second trigger for the daily track: the hourly
+`wprepo_sync_license_data_{name}` event (scheduled by `Updater` on every `init`) self-heals the
+daily cron and calls `run_daily()` (its 20 h `MIN_INTERVAL` prevents doubles). Without it, a
+plugin updated in place V2 → V3 on a site where nobody opens wp-admin would never schedule the
+daily cron, never track, and be marked inactive by the server after 7 days.
 
 ### Payload (JSON body)
 

@@ -74,13 +74,19 @@ The notice ("Want to help make **My Plugin** even better?… Allow / No thanks")
 with `manage_options` while consent is unanswered. **Allow** stores consent, schedules the daily
 `wprepo_insights_track_{slug}` cron and sends an `optin` track; **No thanks** stores the refusal
 and sends nothing. On the instance: `has_consent()`, `get_consent()` (`'yes'|'no'|''`),
-`opt_in()`, `opt_out()` (asks the server to delete this site's data), and
-`->collector->collect()` to show exactly what would be sent.
+`opt_in()`, `opt_out()` (asks the server to delete this site's data; a failed request is retried
+on `admin_init` and daily for up to 7 days), and `->collector->collect()` to show exactly what
+would be sent.
 
 What is sent (JSON, `POST {api_url}/products/{uid-or-id}/track`): event, plugin version and
-status, site URL/name/locale, admin name and email, WordPress/theme/server versions, user
-counts by role, active/inactive plugin counts and the active plugin list (max 200), and your
-`meta`. Daily, plus `activate` / `deactivate` / `upgrade` / `optin` events.
+status, site URL/name/locale plus multisite and local-site flags, the site's `admin_email` and
+the first administrator's display name, WordPress version/memory limit/debug mode, the active
+theme (name, version, parent), server versions and PHP limits, user counts by role,
+active/inactive plugin counts and the active plugin list with versions (max 200), and your
+`meta`. Daily, plus `activate` / `deactivate` / `upgrade` / `optin` events. The notice's
+"What we collect" list discloses all of it, adds "Usage statistics specific to {name}" when
+`meta` or `meta_callback` is set, and appends any `notice.items` you pass — describe what your
+`meta` holds there.
 
 ## Quick Start (V3, commercial plugin)
 
@@ -108,10 +114,19 @@ never shows a notice; the stored license key is included so the server can bind 
 The Insights parts are public properties: `$insights_consent`, `$insights_collector`,
 `$insights_client`, `$insights_scheduler` (all `null` when tracking is off).
 
-Moving a plugin from V2: bump to `^3.0` and change `V2` to `V3` in the namespace. Nothing else —
-saved licenses, the license page and the hourly `wprepo_sync_license_data_{name}` cron carry
-over. The hourly sync now only checks the license; the old `/ping` and `Client::ping()` are
-gone.
+Moving a plugin from V2: bump to `^3.0` and change `V2` to `V3` in the namespace. Saved
+licenses, the license page and the hourly `wprepo_sync_license_data_{name}` cron carry over.
+Check your plugin for these V2 surfaces, which changed:
+
+- `Client::ping()` is gone, and so is the old `/ping` call. The hourly sync checks the license
+  and backs up the daily Insights track (self-healing its cron), so a plugin updated in place
+  on a site nobody opens wp-admin on still checks in.
+- `Integration` no longer has the public `$admin_email` / `$admin_name` properties; the
+  collector reads both at send time.
+- Metadata: assigning `$integration->meta` or `$integration->meta_callback` directly after
+  construction does **not** reach the payload (the collector took its copy in the
+  constructor). Pass `meta` / `meta_callback` in the config, or call `setMeta()` /
+  `setMetaCallback()`.
 
 ## Shipping a free wp.org plugin
 
@@ -265,12 +280,33 @@ with Insights tracks, plus:
 | `product_id`    | string        | `''`               | Numeric product id                                                          |
 | `name`          | string        | plugin header Name | Name shown in the notice                                                    |
 | `privacy_url`   | string        | `''`               | "Learn more" link in the notice; omitted when empty                         |
-| `notice`        | array\|false | `[]`               | `screens` (screen ids; default every admin screen), `text` (override, `%s` = name), `show_callback` (extra gate); `false` = no notice |
+| `notice`        | array\|false | `[]`               | `screens` (screen ids; default every admin screen), `text` (override, `%s` = name), `show_callback` (extra gate), `items` (extra "What we collect" lines, strings); `false` = no notice |
 | `meta`          | array         | `[]`               | Static metadata; Closures resolve at send time                              |
 | `meta_callback` | callable      | `null`             | Returns a metadata array at send time                                       |
 
 Options per plugin (`{slug}` = plugin directory): `{slug}_insights_consent`,
-`{slug}_insights_token`, `{slug}_insights_last_send`; cron hook `wprepo_insights_track_{slug}`.
+`{slug}_insights_token`, `{slug}_insights_last_send`, `{slug}_insights_optout_pending` (a failed
+opt-out awaiting retry); cron hook `wprepo_insights_track_{slug}`. Deactivation clears the cron
+(on every site of the network when network-deactivated) and keeps the options, so a
+re-activation does not ask again.
+
+Remove them on uninstall with `\Shazzad\PluginUpdater\V3\Insights::uninstall( $file )` — it
+deletes the four options and the cron on every site of a multisite network and sends nothing.
+It works for commercial `V3\Integration` plugins too (same keys; the consent option is simply
+absent there).
+
+```php
+// uninstall.php
+defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
+require __DIR__ . '/vendor/autoload.php';
+\Shazzad\PluginUpdater\V3\Insights::uninstall( WP_UNINSTALL_PLUGIN );
+
+// …or in the main plugin file (the callback must be a static method or function):
+register_uninstall_hook( __FILE__, 'my_plugin_uninstall' );
+function my_plugin_uninstall() {
+    \Shazzad\PluginUpdater\V3\Insights::uninstall( __FILE__ );
+}
+```
 
 ### V1 Constructor Parameters (legacy)
 
@@ -507,7 +543,7 @@ The updater integrates with WordPress using these hooks:
 ### Scheduled Tasks
 
 - **License Sync**: Hourly cron job to verify license status (V1/V2 also ping here; V3 does not)
-- **Insights (V3)**: Daily `wprepo_insights_track_{slug}` cron, re-created on `admin_init` if lost
+- **Insights (V3)**: Daily `wprepo_insights_track_{slug}` cron, re-created on `admin_init` if lost (commercial: also by the hourly license sync, which sends the daily track when it is due)
 - **Update Checks**: Integrated with WordPress core update system
 
 ## Admin Interface

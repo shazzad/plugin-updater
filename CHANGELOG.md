@@ -29,6 +29,25 @@ no change; V2 is now stable (additive fixes only) and V3 takes new development.
   the (single) track to the Insights scheduler. `admin_email` / `admin_name` left
   `Integration` (the collector reads them at send time); `meta` / `meta_callback` /
   `setMeta()` / `setMetaCallback()` now feed the Insights payload
+- Fixed (review): commercial plugins updated in place V2 → V3 on sites where nobody opens
+  wp-admin never scheduled the daily Insights cron, so they never tracked and went inactive on
+  the server after 7 days. The hourly license sync now self-heals the daily cron and sends the
+  daily track when due (the 20 h minimum interval prevents doubles)
+- Fixed (review): the consent notice under-disclosed the payload. It now lists the active theme,
+  active plugins' names and versions, user counts by role, WordPress memory limit and debug
+  mode, and the multisite and local-site flags; adds "Usage statistics specific to {name}" when
+  `meta` / `meta_callback` is set; and appends the new `notice.items` config key (extra lines)
+- Fixed (review): the notice said "Your name and email address", but the payload carries the
+  site's `admin_email` and the first administrator's name — now "Your site's admin email address
+  and administrator name"
+- Fixed (review): `Insights::opt_out()` forgot the deletion request when the `optout` call failed.
+  It is now kept in `{slug}_insights_optout_pending` and retried on `admin_init` (at most hourly)
+  and by the daily cron until it succeeds, a new opt-in supersedes it, or 7 days pass
+- New (review): `Insights::uninstall( $file )` deletes every Insights option and the cron, on
+  every site of a multisite network; network deactivation now clears the cron on every site
+- Docs (review): README's V2 → V3 migration note lists the dropped `$admin_email` / `$admin_name`
+  properties and `Client::ping()`, and that assigning `$integration->meta` / `->meta_callback`
+  after construction does not reach the payload (use `setMeta()` / `setMetaCallback()`)
 - Requires the server side from `shazzad/plugin-repo` (`wp-repo-insights/v1` `track` +
   `optout`)
 

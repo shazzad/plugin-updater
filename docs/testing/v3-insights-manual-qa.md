@@ -41,7 +41,7 @@ wpc eval 'Shazzad\PluginRepo\Plugin::get_instance()->maybe_upgrade_db();'   # cr
 ```bash
 # client library: every suite, V1 + V2 + V3
 (cd shazzad-plugin-updater && composer test)
-# expect: OK, 415 tests (9 "risky" = assertion-less migration tests, pre-existing pattern)
+# expect: OK, 443 tests (9 "risky" = assertion-less migration tests, pre-existing pattern)
 
 # server: new suites + one old one as a regression spot-check
 for t in insights-track insights-optout install-dedupe; do
@@ -51,7 +51,7 @@ done
 
 # end to end: real HTTP from two fixture plugins to the local server
 shazzad-plugin-updater-test/bin/insights-e2e | tail -1
-# expect: "47 passed, 0 failed"
+# expect: "48 passed, 0 failed"
 ```
 
 `bin/insights-e2e` also leaves two fixture plugins installed (inactive) and two local products
@@ -71,7 +71,10 @@ Log in at https://w4dev.shazzad.me/wp-admin.
    - [ ] A blue notice appears: "Want to help make **SPU Insights Free Test** even better? Allow
          SPU Insights Free Test to collect diagnostic data and usage information."
    - [ ] **(what we collect)** expands (no page reload, works with JS off). The list includes
-         "Your name and email address", plus a "Learn more" link to the privacy page.
+         "Your site's admin email address and administrator name", the active theme, the names
+         and versions of active plugins, user counts by role, WordPress memory limit and debug
+         mode, the multisite / local-site flags, and "Usage statistics specific to SPU Insights
+         Free Test" (the fixture sends `meta`), plus a "Learn more" link to the privacy page.
    - [ ] The notice shows on other admin screens too (the default is every screen).
 3. Check that nothing was sent: **Plugin Repo → Installs**, filter the plugin to *SPU Insights Free Test*.
    - [ ] No rows.
@@ -94,6 +97,15 @@ Log in at https://w4dev.shazzad.me/wp-admin.
    ```
    - [ ] The Installs row is gone, including its Insights block.
    - [ ] Nothing reappears after `wpc cron event run --due-now`.
+   - [ ] `wpc option get spu-insights-free_insights_optout_pending` finds nothing (the opt-out
+         went through, so no retry is pending).
+8. Uninstall cleanup (the fixture has no uninstall routine, so call it directly):
+   ```bash
+   wpc eval '\Shazzad\PluginUpdater\V3\Insights::uninstall( "spu-insights-free/spu-insights-free.php" );'
+   wpc option list --search='spu-insights-free_insights_*' --format=count
+   wpc cron event list --hook=wprepo_insights_track_spu-insights-free --format=count
+   ```
+   - [ ] Both counts are `0`. Re-running Part 1's `bin/insights-e2e` recreates everything.
 
 ### B. Commercial plugin: no notice, license bound
 
@@ -110,6 +122,17 @@ Log in at https://w4dev.shazzad.me/wp-admin.
    ```
    - [ ] The Installs row now shows the license, and its **Insights** block says mode *commercial*.
    - [ ] Meta shows `orders_synced = 7`.
+4. The hourly backup (a plugin updated in place on a site nobody opens wp-admin on). Remove the
+   daily event and the last-send time, then run only the hourly license sync:
+   ```bash
+   wpc cron event delete wprepo_insights_track_spu-insights-commercial
+   wpc option delete spu-insights-commercial_insights_last_send
+   wpc cron event run "$(wpc cron event list --field=hook | grep '^wprepo_sync_license_data_spu-insights-commercial')"
+   wpc cron event list --hook=wprepo_insights_track_spu-insights-commercial --format=count
+   ```
+   - [ ] The count is `1` (the daily event was re-created) and the Installs row's last check-in
+         moved to now.
+   - [ ] Running the hourly event again right away sends nothing new (20-hour guard).
 
 ### C. The V2 test plugin still works
 
