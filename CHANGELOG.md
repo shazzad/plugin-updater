@@ -20,7 +20,7 @@ no change; V2 is now stable (additive fixes only) and V3 takes new development.
 - New: `V3\Integration` — commercial entry point. Same config, storage keys, transients, cron
   hook, license page, notices and update-row message as V2 (moving V2 → V3 keeps every saved
   license). `api_url` moves from `wp-repo/v3` to `wp-repo/v4`, which serves updates, licensing
-  and Insights from one base (an `api_url` still on v3 fires `_doing_it_wrong()`). Tracking runs through the Insights parts in commercial mode — no consent step,
+  and Insights from one base (an `api_url` still on v3 fires `_doing_it_wrong()` and leaves tracking off). Tracking runs through the Insights parts in commercial mode — no consent step,
   no notice, license key included — exposed as `$insights_consent`, `$insights_collector`,
   `$insights_client`, `$insights_scheduler`
 - Changed (V3 vs V2): `Client::ping()` removed. The hourly `wprepo_sync_license_data_{name}`

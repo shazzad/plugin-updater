@@ -110,7 +110,8 @@ if ( class_exists( \Shazzad\PluginUpdater\V3\Integration::class ) ) {
 
 The config is the V2 array, with `api_url` on `wp-repo/v4`: the same base serves updates,
 licensing and Insights. An `api_url` still on `wp-repo/v3` (copied from a V2 config) fires
-`_doing_it_wrong()` — v3 has no Insights routes. Tracking needs no consent here and
+`_doing_it_wrong()` and leaves tracking off — v3 has no Insights routes (updates and licensing
+still work). Tracking needs no consent here and
 never shows a notice; the stored license key is included so the server can bind the install.
 The Insights parts are public properties: `$insights_consent`, `$insights_collector`,
 `$insights_client`, `$insights_scheduler` (all `null` when tracking is off).

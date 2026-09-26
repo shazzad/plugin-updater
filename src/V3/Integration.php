@@ -325,7 +325,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 			$this->updater = new Updater( $this );
 			$this->tracker = new Tracker( $this );
 
-			if ( \is_string( $this->api_url ) && '' !== $this->api_url ) {
+			// wp-repo/v3 has no Insights routes; tracking against it would only 404.
+			if ( \is_string( $this->api_url ) && '' !== $this->api_url && ! self::is_v3_api_url( $this->api_url ) ) {
 				$this->setup_insights();
 			}
 
@@ -398,14 +399,27 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 				);
 			}
 
-			if ( isset( $config['api_url'] ) && \is_string( $config['api_url'] ) && \preg_match( '#/wp-repo/v3/?$#', $config['api_url'] ) ) {
+			if ( isset( $config['api_url'] ) && \is_string( $config['api_url'] ) && self::is_v3_api_url( $config['api_url'] ) ) {
 				_doing_it_wrong(
 					__METHOD__,
-					'Config "api_url" points at wp-repo/v3, which has no Insights routes. V3 of this'
-					. ' library needs the wp-repo/v4 API (e.g. https://w4dev.com/wp-json/wp-repo/v4).',
+					'Config "api_url" points at wp-repo/v3, which has no Insights routes, so Insights'
+					. ' tracking is off. V3 of this library needs the wp-repo/v4 API'
+					. ' (e.g. https://w4dev.com/wp-json/wp-repo/v4).',
 					'3.0.0'
 				);
 			}
+		}
+
+		/**
+		 * Whether $api_url is the wp-repo/v3 base (as copied from a V2 config).
+		 *
+		 * @since 3.0.0
+		 *
+		 * @param string $api_url API base URL.
+		 * @return bool
+		 */
+		private static function is_v3_api_url( $api_url ) {
+			return (bool) \preg_match( '#/wp-repo/v3/?$#', $api_url );
 		}
 
 		/**

@@ -140,11 +140,14 @@ class IntegrationInsightsTest extends TestCase {
 	}
 
 	/** @test */
-	public function a_v3_api_url_draws_a_notice() {
+	public function a_v3_api_url_draws_a_notice_and_leaves_insights_off() {
 		$integration = $this->create_integration( [ 'api_url' => 'https://repo.example.com/wp-json/wp-repo/v3' ] );
 
 		$this->assertCount( 1, $this->doing_it_wrong );
 		$this->assertStringContainsString( 'wp-repo/v4', $this->doing_it_wrong[0] );
+		$this->assertNull( $integration->insights_client, 'No Insights against v3: its track route does not exist.' );
+		$this->assertNull( $integration->insights_scheduler );
+		$this->assertArrayNotHasKey( 'wprepo_insights_track_my-plugin', $this->hooks );
 		$this->assertNotNull( $integration->updater );
 	}
 

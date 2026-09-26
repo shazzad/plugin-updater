@@ -59,9 +59,10 @@ Two entry points over one set of Insights parts:
   `$store`/`$client`/`$updater`/`$tracker`/`$admin`/`$notices`/`$update_message`) plus the
   Insights parts built in **commercial mode** (consent implied, never asked, `Notice` never
   loaded) as `$insights_consent`, `$insights_collector`, `$insights_client`,
-  `$insights_scheduler`. Extra config key `insights_api_url`, default derived from `api_url`
-  (`/wp-repo/v3` → `/wp-repo-insights/v1`); an underivable `api_url` → `_doing_it_wrong()` and
-  the four properties stay `null`. `Client::ping()` is gone: the hourly
+  `$insights_scheduler`. No extra config keys: `api_url` is the plugin-repo `wp-repo/v4` base
+  and serves updates, licensing and Insights alike. An `api_url` on `wp-repo/v3` (no Insights
+  routes there) → `_doing_it_wrong()` and the four properties stay `null`; updates and
+  licensing still work. `Client::ping()` is gone: the hourly
   `wprepo_sync_license_data_{license_name}` sync checks the license and backs up the daily track, `Tracker`
   activate/deactivate and `Updater` post-upgrade only refresh caches, and the Insights
   `Scheduler` sends the `activate`/`deactivate`/`upgrade`/daily tracks (license key included
@@ -75,8 +76,8 @@ opt-out, retried up to 7 days); daily cron `wprepo_insights_track_{slug}`, re-cr
 `admin_init` when consent is granted and, for commercial plugins, by the hourly license sync
 (which also sends the daily track when due). `Insights::uninstall( $file )` removes all of it,
 network-wide. The notice's "What we collect" list (`Notice::get_collected_items()`) must stay in
-step with `Collector::collect()`. Server side: `wp-repo-insights/v1`
-`track` + `optout` in `shazzad/plugin-repo`.
+step with `Collector::collect()`. Server side: `wp-repo/v4`
+`track` + `optout` in `shazzad/plugin-repo` 2.8.0+.
 
 ### V2 (`src/V2/`, stable)
 
