@@ -159,7 +159,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 		 *     @type string         $name          Name shown in the notice. Default: plugin header Name.
 		 *     @type string         $privacy_url   "Learn more" link in the notice. Omitted when empty.
 		 *     @type array|false    $notice        `screens` (screen ids; default every admin screen),
-		 *                                         `text` (override; `%s` = name), `show_callback` (extra gate);
+		 *                                         `text` (override; `%s` = name), `show_callback` (extra gate),
+		 *                                         `items` (extra "What we collect" lines, strings);
 		 *                                         or false to draw no notice (the plugin calls opt_in() itself).
 		 *     @type array          $meta          Static metadata; Closures resolve at send time.
 		 *     @type callable       $meta_callback Returns a metadata array at send time.
@@ -248,12 +249,22 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 			}
 
 			if ( \is_array( $config['notice'] ?? null ) ) {
-				foreach ( \array_diff( \array_keys( $config['notice'] ), [ 'screens', 'text', 'show_callback' ] ) as $unknown ) {
+				foreach ( \array_diff( \array_keys( $config['notice'] ), [ 'screens', 'text', 'show_callback', 'items' ] ) as $unknown ) {
 					_doing_it_wrong( __METHOD__, esc_html( \sprintf( 'Unrecognized notice key "%s".', (string) $unknown ) ), '3.0.0' );
 				}
 
 				if ( isset( $config['notice']['show_callback'] ) && ! \is_callable( $config['notice']['show_callback'] ) ) {
 					_doing_it_wrong( __METHOD__, 'Notice key "show_callback" is not callable and will be ignored.', '3.0.0' );
+				}
+
+				if ( isset( $config['notice']['items'] ) ) {
+					$items = $config['notice']['items'];
+
+					if ( ! \is_array( $items ) ) {
+						_doing_it_wrong( __METHOD__, 'Notice key "items" is not an array and will be ignored.', '3.0.0' );
+					} elseif ( \count( \array_filter( $items, [ Notice::class, 'is_valid_item' ] ) ) !== \count( $items ) ) {
+						_doing_it_wrong( __METHOD__, 'Notice key "items" must hold non-empty strings; other entries will be ignored.', '3.0.0' );
+					}
 				}
 			}
 		}

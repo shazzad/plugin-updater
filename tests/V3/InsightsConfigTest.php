@@ -103,6 +103,22 @@ class InsightsConfigTest extends TestCase {
 	}
 
 	/** @test */
+	public function notice_items_are_a_known_key_and_validated() {
+		$insights = $this->create_insights( [ 'notice' => [ 'items' => [ 'Number of forms' ] ] ] );
+
+		$this->assertSame( [], $this->doing_it_wrong );
+		$this->assertSame( [ 'Number of forms' ], $insights->notice->items );
+
+		$this->create_insights( [ 'notice' => [ 'items' => 'Number of forms' ] ] );
+		$this->assertContains( 'Notice key "items" is not an array and will be ignored.', $this->doing_it_wrong );
+
+		$this->doing_it_wrong = [];
+		$insights             = $this->create_insights( [ 'notice' => [ 'items' => [ 'Number of forms', 7, '' ] ] ] );
+		$this->assertSame( [ 'Notice key "items" must hold non-empty strings; other entries will be ignored.' ], $this->doing_it_wrong );
+		$this->assertSame( [ 'Number of forms' ], $insights->notice->items );
+	}
+
+	/** @test */
 	public function non_array_notice_notifies_and_uses_defaults() {
 		$insights = $this->create_insights( [ 'notice' => 'yes' ] );
 

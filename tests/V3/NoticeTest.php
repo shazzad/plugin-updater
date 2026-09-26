@@ -53,14 +53,76 @@ class NoticeTest extends TestCase {
 		$this->assertStringContainsString( 'notice notice-info', $output );
 		$this->assertStringContainsString( 'Want to help make <strong>Adminkeep</strong> even better? Allow Adminkeep to collect', $output );
 		$this->assertStringContainsString( '<details><summary>What we collect</summary>', $output );
-		$this->assertStringContainsString( 'Your name and email address', $output );
-		$this->assertStringContainsString( "Active plugins' names", $output );
+		$this->assertStringContainsString( "Your site's admin email address and administrator name", $output );
+		$this->assertStringContainsString( 'names and versions of active plugins', $output );
 		$this->assertStringContainsString( 'href="https://example.com/privacy"', $output );
 		$this->assertStringContainsString( 'wprepo_insights=my-plugin&wprepo_insights_action=allow&_wpnonce=nonce-wprepo_insights_my-plugin_allow', $output );
 		$this->assertStringContainsString( 'wprepo_insights_action=decline&_wpnonce=nonce-wprepo_insights_my-plugin_decline', $output );
 		$this->assertStringContainsString( '>Allow</a>', $output );
 		$this->assertStringContainsString( '>No thanks</a>', $output );
 		$this->assertStringNotContainsString( '<script', $output );
+	}
+
+	/**
+	 * The notice is the consent: it must disclose every group of data
+	 * Collector::collect() sends.
+	 *
+	 * @test
+	 */
+	public function discloses_every_payload_group() {
+		$items = implode( "\n", $this->insights_with_notice()->notice->get_collected_items() );
+
+		$expected = [
+			'Site name, URL and language',                 // site.name / url / locale.
+			'multisite',                                   // site.multisite.
+			'local development site',                      // site.is_local.
+			"Your site's admin email address and administrator name", // admin.
+			'WordPress version, memory limit and debug mode', // wp.version / memory_limit / debug_mode.
+			'Active theme (name, version and parent theme)',  // wp.theme.
+			'PHP and MySQL versions, server software',     // server.*.
+			'PHP memory, execution time and upload limits', // server limits.
+			'Number of users on your site, by role',       // users.total / by_role.
+			'Number of active and inactive plugins',       // plugins.*_count.
+			'names and versions of active plugins',        // plugins.active.
+		];
+
+		foreach ( $expected as $needle ) {
+			$this->assertStringContainsString( $needle, $items );
+		}
+
+		$this->assertStringNotContainsString( 'Your name', $items, 'The payload carries the site admin, not the clicking user.' );
+		$this->assertStringNotContainsString( 'Usage statistics', $items, 'No meta configured, so no meta line.' );
+	}
+
+	/** @test */
+	public function meta_or_meta_callback_adds_a_usage_statistics_line() {
+		$with_meta = $this->insights_with_notice( [], [ 'name' => 'Adminkeep', 'meta' => [ 'lists' => 3 ] ] );
+		$this->assertContains( 'Usage statistics specific to Adminkeep', $with_meta->notice->get_collected_items() );
+
+		$with_callback = $this->insights_with_notice(
+			[],
+			[
+				'meta_callback' => function () {
+					return [ 'lists' => 3 ];
+				},
+			]
+		);
+		$this->assertContains( 'Usage statistics specific to My Plugin', $with_callback->notice->get_collected_items() );
+		$this->assertStringContainsString( '<li>Usage statistics specific to My Plugin</li>', $this->render( $with_callback ) );
+	}
+
+	/** @test */
+	public function extra_items_are_appended_and_invalid_entries_dropped() {
+		$insights = $this->insights_with_notice(
+			[ 'items' => [ 'Number of job listings', 42, '', '  ', [ 'nested' ], 'Which ATS you connect' ] ],
+			[ 'meta' => [ 'jobs' => 1 ] ]
+		);
+
+		$items = $insights->notice->get_collected_items();
+
+		$this->assertSame( [ 'Number of job listings', 'Which ATS you connect' ], $insights->notice->items );
+		$this->assertSame( [ 'Usage statistics specific to My Plugin', 'Number of job listings', 'Which ATS you connect' ], array_slice( $items, -3 ) );
+		$this->assertStringContainsString( '<li>Which ATS you connect</li>', $this->render( $insights ) );
 	}
 
 	/** @test */

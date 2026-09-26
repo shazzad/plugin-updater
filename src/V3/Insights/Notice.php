@@ -101,6 +101,15 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notice' ) ) :
 		public $show_callback = null;
 
 		/**
+		 * Extra "What we collect" lines appended to the built-in list.
+		 *
+		 * @since 3.0.0
+		 *
+		 * @var string[]
+		 */
+		public $items = [];
+
+		/**
 		 * Constructor.
 		 *
 		 * @since 3.0.0
@@ -112,6 +121,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notice' ) ) :
 		 *     @type string[] $screens       Screen ids.
 		 *     @type string   $text          Text override.
 		 *     @type callable $show_callback Extra gate.
+		 *     @type string[] $items         Extra "What we collect" lines.
 		 * }
 		 */
 		public function __construct( Insights $insights, array $args = [] ) {
@@ -127,6 +137,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notice' ) ) :
 
 			if ( isset( $args['show_callback'] ) && \is_callable( $args['show_callback'] ) ) {
 				$this->show_callback = $args['show_callback'];
+			}
+
+			if ( isset( $args['items'] ) && \is_array( $args['items'] ) ) {
+				$this->items = \array_values( \array_filter( $args['items'], [ self::class, 'is_valid_item' ] ) );
 			}
 
 			add_action( 'admin_notices', [ $this, 'render' ] );
@@ -202,22 +216,48 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notice' ) ) :
 		}
 
 		/**
-		 * What the notice says is collected.
+		 * What the notice says is collected: one line per group of the
+		 * Collector payload, a line for the plugin's own statistics when it
+		 * sends `meta`, then the configured extra `items`. Plain text; the
+		 * renderer escapes it.
+		 *
+		 * Keep this in step with Collector::collect() — the notice is the
+		 * consent, so it must never promise less than is sent.
 		 *
 		 * @since 3.0.0
 		 *
 		 * @return string[]
 		 */
 		public function get_collected_items() {
-			return [
-				'Server environment details (PHP, MySQL, server, WordPress versions)',
-				'Number of users on your site',
-				'Site language',
-				'Number of active and inactive plugins',
-				"Active plugins' names",
-				'Site name and URL',
-				'Your name and email address',
+			$items = [
+				'Site name, URL and language, whether it is a multisite, and whether it looks like a local development site',
+				"Your site's admin email address and administrator name",
+				'WordPress version, memory limit and debug mode',
+				'Active theme (name, version and parent theme)',
+				'Server environment details (PHP and MySQL versions, server software, PHP memory, execution time and upload limits)',
+				'Number of users on your site, by role',
+				'Number of active and inactive plugins, and the names and versions of active plugins',
 			];
+
+			$collector = $this->insights->collector;
+
+			if ( ! empty( $collector->meta ) || null !== $collector->meta_callback ) {
+				$items[] = \sprintf( 'Usage statistics specific to %s', $this->insights->get_name() );
+			}
+
+			return \array_merge( $items, $this->items );
+		}
+
+		/**
+		 * Whether a configured extra item is usable: a non-empty string.
+		 *
+		 * @since 3.0.0
+		 *
+		 * @param mixed $item Candidate item.
+		 * @return bool
+		 */
+		public static function is_valid_item( $item ) {
+			return \is_string( $item ) && '' !== \trim( $item );
 		}
 
 		/**
