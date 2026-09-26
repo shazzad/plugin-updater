@@ -143,6 +143,87 @@ if ( ! class_exists( __NAMESPACE__ . '\\Consent' ) ) :
 		}
 
 		/**
+		 * Option key holding a failed opt-out that still has to reach the
+		 * server (`since` = first failure, `last_try` = latest attempt).
+		 *
+		 * @since 3.0.0
+		 *
+		 * @return string
+		 */
+		public function get_optout_pending_key() {
+			return "{$this->slug}_insights_optout_pending";
+		}
+
+		/**
+		 * The pending opt-out, if any.
+		 *
+		 * @since 3.0.0
+		 *
+		 * @return array Empty when none; otherwise `since` and `last_try` timestamps.
+		 */
+		public function get_optout_pending() {
+			$pending = get_option( $this->get_optout_pending_key(), [] );
+
+			if ( ! \is_array( $pending ) || empty( $pending['since'] ) ) {
+				return [];
+			}
+
+			return [
+				'since'    => (int) $pending['since'],
+				'last_try' => isset( $pending['last_try'] ) ? (int) $pending['last_try'] : (int) $pending['since'],
+			];
+		}
+
+		/**
+		 * Whether a failed opt-out is waiting to be retried. While it is, the
+		 * client may send the opt-out call (site URL + token only) even though
+		 * consent is `no`.
+		 *
+		 * @since 3.0.0
+		 *
+		 * @return bool
+		 */
+		public function has_optout_pending() {
+			return ! empty( $this->get_optout_pending() );
+		}
+
+		/**
+		 * Records a failed opt-out attempt. The first failure time is kept, so
+		 * retries give up a fixed period after the admin opted out.
+		 *
+		 * @since 3.0.0
+		 *
+		 * @return void
+		 */
+		public function mark_optout_pending() {
+			$pending = $this->get_optout_pending();
+			$now     = time();
+
+			update_option(
+				$this->get_optout_pending_key(),
+				[
+					'since'    => ! empty( $pending ) ? $pending['since'] : $now,
+					'last_try' => $now,
+				],
+				false
+			);
+		}
+
+		/**
+		 * Forgets a pending opt-out (it went through, was superseded by a new
+		 * opt-in, or retries gave up).
+		 *
+		 * @since 3.0.0
+		 *
+		 * @return void
+		 */
+		public function clear_optout_pending() {
+			if ( $this->has_optout_pending() ) {
+				delete_option( $this->get_optout_pending_key() );
+			}
+		}
+
+		/**
 		 * Current consent state.
 		 *
 		 * @since 3.0.0

@@ -329,6 +329,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 		 * @return array|\WP_Error Result of the `optin` track.
 		 */
 		public function opt_in() {
+			// A new opt-in supersedes an earlier deletion request that never
+			// reached the server.
+			$this->consent->clear_optout_pending();
 			$this->consent->grant();
 			$this->scheduler->schedule();
 
@@ -341,6 +344,12 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 		 * stores `no` and clears the cron. From an unanswered state nothing
 		 * is sent at all.
 		 *
+		 * When the deletion request fails (timeout, 5xx), consent is still
+		 * `no` at once — nothing is tracked any more — but the request is
+		 * remembered in `{slug}_insights_optout_pending` and retried on
+		 * admin_init and by the daily cron (kept for that), until it goes
+		 * through or Scheduler::OPTOUT_GIVE_UP has passed.
+		 *
 		 * @since 3.0.0
 		 *
 		 * @return array|\WP_Error|null Result of the optout call, or null when
@@ -349,12 +358,19 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 		public function opt_out() {
 			$result = null;
 
-			if ( $this->consent->is_granted() ) {
+			if ( $this->consent->is_granted() || $this->consent->has_optout_pending() ) {
 				$result = $this->client->optout();
 			}
 
 			$this->consent->revoke();
-			$this->scheduler->unschedule();
+
+			if ( Scheduler::optout_should_retry( $result ) ) {
+				$this->consent->mark_optout_pending();
+				$this->scheduler->schedule();
+			} else {
+				$this->consent->clear_optout_pending();
+				$this->scheduler->unschedule();
+			}
 
 			return $result;
 		}

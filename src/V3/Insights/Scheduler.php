@@ -42,6 +42,28 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 		const MIN_INTERVAL = 72000;
 
 		/**
+		 * Minimum gap between two retries of a failed opt-out, in seconds
+		 * (1 hour). The admin_init retry would otherwise cost every admin page
+		 * load a timeout while the server is down.
+		 *
+		 * @since 3.0.0
+		 *
+		 * @var int
+		 */
+		const OPTOUT_RETRY_INTERVAL = 3600;
+
+		/**
+		 * How long a failed opt-out keeps being retried, counted from the
+		 * first failure, in seconds (7 days — the server's own inactivity
+		 * window).
+		 *
+		 * @since 3.0.0
+		 *
+		 * @var int
+		 */
+		const OPTOUT_GIVE_UP = 604800;
+
+		/**
 		 * Plugin basename (`dir/file.php`).
 		 *
 		 * @since 3.0.0
@@ -172,16 +194,88 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 		 * Re-creates a missing daily event on admin requests while consent is
 		 * granted. Covers installs that never saw an activation with this code
 		 * (a commercial plugin updated in place to V3) and cron entries lost
-		 * to a cron reset.
+		 * to a cron reset. While a failed opt-out is pending, retries it
+		 * instead (throttled to once per OPTOUT_RETRY_INTERVAL).
 		 *
 		 * @since 3.0.0
 		 *
 		 * @return void
 		 */
 		public function maybe_schedule() {
+			if ( $this->consent->has_optout_pending() ) {
+				$this->retry_optout();
+				return;
+			}
+
 			if ( $this->consent->is_granted() ) {
 				$this->schedule();
 			}
+		}
+
+		/**
+		 * Retries an opt-out that failed to reach the server (timeout, 5xx).
+		 *
+		 * Clears the pending flag and the cron once the call goes through, when
+		 * there turns out to be no token to opt out with, when consent was
+		 * granted again (the new opt-in supersedes the deletion), or after
+		 * OPTOUT_GIVE_UP since the first failure.
+		 *
+		 * @since 3.0.0
+		 *
+		 * @return array|WP_Error|null Result of the optout call, or null when
+		 *                             nothing was sent.
+		 */
+		public function retry_optout() {
+			$pending = $this->consent->get_optout_pending();
+
+			if ( empty( $pending ) ) {
+				return null;
+			}
+
+			if ( $this->consent->is_granted() ) {
+				$this->consent->clear_optout_pending();
+				return null;
+			}
+
+			$now = time();
+
+			if ( ( $now - $pending['since'] ) >= self::OPTOUT_GIVE_UP ) {
+				$this->consent->clear_optout_pending();
+				$this->unschedule();
+				return null;
+			}
+
+			if ( ( $now - $pending['last_try'] ) < self::OPTOUT_RETRY_INTERVAL ) {
+				return null;
+			}
+
+			// Record the attempt first, so a request that hangs past a fatal
+			// timeout is not retried on the very next page load.
+			$this->consent->mark_optout_pending();
+
+			$result = $this->client->optout();
+
+			if ( self::optout_should_retry( $result ) ) {
+				return $result;
+			}
+
+			$this->consent->clear_optout_pending();
+			$this->unschedule();
+
+			return $result;
+		}
+
+		/**
+		 * Whether an optout result is a failure worth retrying: any WP_Error
+		 * except a missing token, which no retry can fix.
+		 *
+		 * @since 3.0.0
+		 *
+		 * @param mixed $result Client::optout() result.
+		 * @return bool
+		 */
+		public static function optout_should_retry( $result ) {
+			return is_wp_error( $result ) && 'wprepo_insights_no_token' !== $result->get_error_code();
 		}
 
 		/**
@@ -207,13 +301,19 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 		}
 
 		/**
-		 * Daily cron callback. Sends at most once per MIN_INTERVAL.
+		 * Daily cron callback. Sends at most once per MIN_INTERVAL. While a
+		 * failed opt-out is pending, retries that instead of tracking.
 		 *
 		 * @since 3.0.0
 		 *
 		 * @return void
 		 */
 		public function run_daily() {
+			if ( $this->consent->has_optout_pending() ) {
+				$this->retry_optout();
+				return;
+			}
+
 			if ( ! $this->consent->is_granted() ) {
 				return;
 			}

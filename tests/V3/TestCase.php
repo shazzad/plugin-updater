@@ -120,6 +120,11 @@ abstract class TestCase extends PHPUnitTestCase {
 			$test->options[ $key ] = $value;
 			return true;
 		} );
+		Functions\when( 'delete_option' )->alias( function ( $key ) use ( $test ) {
+			$existed = array_key_exists( $key, $test->options );
+			unset( $test->options[ $key ] );
+			return $existed;
+		} );
 		Functions\when( 'get_site_option' )->justReturn( [] );
 		Functions\when( 'wp_generate_password' )->justReturn( 'abcdefghijklmnopqrstuvwxyz012345' );
 

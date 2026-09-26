@@ -111,15 +111,17 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 
 		/**
 		 * Asks the server to delete this install's data. Needs the token the
-		 * install tracked with; sent while consent is still `yes`, so callers
-		 * revoke consent after this returns.
+		 * install tracked with; sent while consent is still `yes` (callers
+		 * revoke consent after this returns), or later while a failed
+		 * opt-out is pending retry. It only ever sends the site URL and the
+		 * token.
 		 *
 		 * @since 3.0.0
 		 *
 		 * @return array|WP_Error Decoded response body (possibly empty) or WP_Error.
 		 */
 		public function optout() {
-			if ( ! $this->consent->is_granted() ) {
+			if ( ! $this->consent->is_granted() && ! $this->consent->has_optout_pending() ) {
 				return new WP_Error( 'wprepo_insights_no_consent', 'Insights consent not granted; nothing sent.' );
 			}
 
