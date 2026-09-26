@@ -260,7 +260,8 @@ class IntegrationInsightsTest extends TestCase {
 
 	/** @test */
 	public function hourly_license_sync_checks_the_license_and_never_pings() {
-		$this->options['my-plugin12_code'] = 'LIC-12';
+		$this->options['my-plugin12_code']             = 'LIC-12';
+		$this->options['my-plugin_insights_last_send'] = time() - 3600; // daily track not due.
 
 		$integration = $this->create_integration();
 
@@ -269,7 +270,7 @@ class IntegrationInsightsTest extends TestCase {
 		$this->assertCount( 1, $this->requests );
 		$this->assertStringContainsString( '/wp-repo/v3/products/12/check_license', $this->requests[0] );
 		$this->assertSame( [ 'status' => 'active' ], $this->options['my-plugin12_data'] );
-		$this->assertSame( [], $this->http, 'The hourly sync must not POST anything.' );
+		$this->assertSame( [], $this->http, 'The hourly sync must not POST while the daily track is not due.' );
 
 		foreach ( array_merge( $this->requests, array_column( $this->http, 0 ) ) as $url ) {
 			$this->assertStringNotContainsString( '/ping', $url );
@@ -279,13 +280,67 @@ class IntegrationInsightsTest extends TestCase {
 	}
 
 	/** @test */
-	public function hourly_license_sync_without_a_license_sends_nothing() {
+	public function hourly_license_sync_without_a_license_makes_no_license_request() {
+		$this->options['my-plugin_insights_last_send'] = time() - 3600;
+
 		$this->create_integration();
 
 		$this->fire( 'wprepo_sync_license_data_my-plugin12' );
 
 		$this->assertSame( [], $this->requests );
 		$this->assertSame( [], $this->http );
+	}
+
+	/**
+	 * A plugin updated in place from V2 on a site nobody opens wp-admin on:
+	 * no activation, no admin_init — only the hourly event Updater schedules
+	 * on `init`. It must still check in daily, or the server marks the
+	 * install inactive after 7 days.
+	 *
+	 * @test
+	 */
+	public function hourly_sync_sends_the_overdue_daily_track_and_self_heals_the_cron() {
+		$this->create_integration( [ 'license' => false ] );
+
+		$this->assertArrayNotHasKey( 'wprepo_insights_track_my-plugin', $this->cron );
+
+		$this->fire( 'wprepo_sync_license_data_my-plugin12' );
+
+		$this->assertCount( 1, $this->http );
+		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo-insights/v1/products/12/track', $this->http[0][0] );
+		$this->assertSame( 'daily', $this->http_body()['event'] );
+		$this->assertSame( 'daily', $this->cron['wprepo_insights_track_my-plugin'], 'The daily event was not re-created.' );
+		$this->assertEqualsWithDelta( time(), $this->options['my-plugin_insights_last_send'], 5 );
+	}
+
+	/** @test */
+	public function hourly_sync_and_daily_cron_never_double_send() {
+		$this->options['my-plugin12_code'] = 'LIC-12';
+
+		$this->create_integration();
+
+		$this->fire( 'wprepo_sync_license_data_my-plugin12' );
+		$this->fire( 'wprepo_sync_license_data_my-plugin12' );
+		$this->fire( 'wprepo_insights_track_my-plugin' );
+
+		$this->assertCount( 1, $this->http, 'MIN_INTERVAL must hold across the hourly and daily paths.' );
+		$this->assertSame( 'LIC-12', $this->http_body()['license'] );
+		$this->assertCount( 2, $this->requests, 'Each hourly run still checks the license.' );
+	}
+
+	/** @test */
+	public function hourly_sync_with_insights_off_still_checks_the_license() {
+		$this->options['my-plugin12_code'] = 'LIC-12';
+
+		$integration = $this->create_integration( [ 'api_url' => 'https://updates.example.net/wp-json/wp-repo/v2' ] );
+
+		$this->assertNull( $integration->insights_scheduler );
+
+		$this->fire( 'wprepo_sync_license_data_my-plugin12' );
+
+		$this->assertCount( 1, $this->requests );
+		$this->assertSame( [], $this->http );
+		$this->assertSame( [], $this->cron );
 	}
 
 	/** @test */

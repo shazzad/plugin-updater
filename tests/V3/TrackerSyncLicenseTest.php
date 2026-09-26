@@ -26,9 +26,19 @@ class TrackerSyncLicenseTest extends IntegrationTestCase {
 		};
 	}
 
+	/**
+	 * These tests pin the license half of the hourly sync with exact option
+	 * expectations; its Insights half (daily track backup) is covered in
+	 * IntegrationInsightsTest, which stubs the full collector environment.
+	 */
+	private function insights_off( $integration ) {
+		$integration->insights_scheduler = null;
+		return $integration;
+	}
+
 	/** @test */
 	public function invalid_license_marks_data_invalid_and_keeps_the_code() {
-		$integration = $this->create_integration( [ 'license' => true ] );
+		$integration = $this->insights_off( $this->create_integration( [ 'license' => true ] ) );
 
 		Functions\when( 'get_option' )->alias( function ( $key ) {
 			return 'my-plugin42_code' === $key ? 'MY-LICENSE-KEY' : false;
@@ -60,7 +70,7 @@ class TrackerSyncLicenseTest extends IntegrationTestCase {
 
 	/** @test */
 	public function transient_api_failure_leaves_stored_license_untouched() {
-		$integration = $this->create_integration( [ 'license' => true ] );
+		$integration = $this->insights_off( $this->create_integration( [ 'license' => true ] ) );
 
 		Functions\when( 'get_option' )->alias( function ( $key ) {
 			return 'my-plugin42_code' === $key ? 'MY-LICENSE-KEY' : false;
@@ -81,7 +91,7 @@ class TrackerSyncLicenseTest extends IntegrationTestCase {
 
 	/** @test */
 	public function valid_license_stores_returned_data() {
-		$integration = $this->create_integration( [ 'license' => true ] );
+		$integration = $this->insights_off( $this->create_integration( [ 'license' => true ] ) );
 
 		Functions\when( 'get_option' )->alias( function ( $key ) {
 			return 'my-plugin42_code' === $key ? 'MY-LICENSE-KEY' : false;

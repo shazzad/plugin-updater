@@ -53,13 +53,16 @@ if ( ! class_exists( __NAMESPACE__ . '\\Tracker' ) ) :
 		/**
 		 * Synchronize license data with the remote server.
 		 *
-		 * Hourly. Only the license check runs here now; install tracking
-		 * (the V2 `ping()`) moved to the Insights scheduler's daily track.
+		 * Hourly. The license check runs here; install tracking (the V2
+		 * `ping()`) moved to the Insights scheduler's daily track, which this
+		 * hourly event also backs up — see run_insights().
 		 *
 		 * @since 3.0.0
 		 * @return void
 		 */
 		public function sync_license_data() {
+			$this->run_insights();
+
 			$license = $this->integration->get_license_code();
 			if ( empty( $license ) ) {
 				return;
@@ -77,6 +80,31 @@ if ( ! class_exists( __NAMESPACE__ . '\\Tracker' ) ) :
 			if ( ! empty( $response['license'] ) ) {
 				$this->integration->update_license_data( $response['license'] );
 			}
+		}
+
+		/**
+		 * Hourly backup for the daily Insights track.
+		 *
+		 * The daily Insights cron is created on activation and re-created on
+		 * admin_init. A plugin updated in place from V2 (WP-CLI, auto-update,
+		 * a management dashboard) on a site where nobody opens wp-admin never
+		 * gets either — but this hourly event is scheduled on every `init`.
+		 * So: self-heal the daily event, and send the daily track when it is
+		 * due. The scheduler's MIN_INTERVAL guard keeps this and the daily
+		 * cron from double-sending.
+		 *
+		 * @since 3.0.0
+		 * @return void
+		 */
+		private function run_insights() {
+			$scheduler = $this->integration->insights_scheduler;
+
+			if ( null === $scheduler ) {
+				return;
+			}
+
+			$scheduler->maybe_schedule();
+			$scheduler->run_daily();
 		}
 
 		/**
