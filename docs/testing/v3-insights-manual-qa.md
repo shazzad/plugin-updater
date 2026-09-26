@@ -6,14 +6,14 @@ What's being tested: usage tracking in plugin-updater **V3**, built on 2026-09-2
   the plugin's own counters once a day.
 - **Commercial plugins** (`V3\Integration`) do the same without asking, on top of V2's updates
   and licensing.
-- The server side is the new `wp-repo-insights/v1` API in plugin-repo.
+- The server side is plugin-repo's `wp-repo/v4` API (all of v3 plus `track` / `optout`).
 
 Three draft PRs make up the work:
 
 | Repo | PR | Branch |
 |---|---|---|
 | plugin-updater | shazzad/plugin-updater#29 | `feature/v3-insights` |
-| plugin-repo | shazzad/plugin-repo#77 | `feature/insights-api` |
+| plugin-repo | shazzad/plugin-repo PR for 2.8.0 | `feature/v4-api` |
 | plugin-updater-test | shazzad/plugin-updater-test#1 | `feature/v3-insights` |
 
 Everything runs on the local w4dev stack (https://w4dev.shazzad.me). Nothing touches w4dev.com.
@@ -27,7 +27,7 @@ for Part 3's isolation checks.
 ```bash
 cd ~/personal-assistant/w4dev-project
 git -C shazzad-plugin-updater      switch feature/v3-insights
-git -C shazzad-plugin-repo         switch feature/insights-api      # was on fix/versioned-download-url (#74)
+git -C shazzad-plugin-repo         switch feature/v4-api
 git -C shazzad-plugin-updater-test switch feature/v3-insights
 docker compose up -d
 
@@ -165,8 +165,10 @@ git -C shazzad-plugin-repo switch fix/versioned-download-url   # back to your #7
 
 ## Before shipping (not part of testing)
 
-- **Deploy plugin-repo#77 before any plugin ships on V3.** Until then a V3 plugin's tracks get
-  a 404. The client ignores it, and updates and licensing keep working.
+- **Deploy plugin-repo 2.8.0 before any plugin ships on V3.** V3 plugins call `wp-repo/v4`,
+  which on the server before 2.8.0 has only a stale `ping` route: tracks, **update checks and
+  license checks** would all 404 until it is deployed. (2.7.0 was never deployed and is
+  superseded by 2.8.0.)
 - On deploy, the first request runs `Installer::upgrade()` once, because of the new
   `wprepo_db_version` schema check. That is the same as any version bump, and it creates
   `wprepo_install_insights`.
@@ -174,5 +176,5 @@ git -C shazzad-plugin-repo switch fix/versioned-download-url   # back to your #7
   install** on and no versions uploaded.
 - plugin-updater releases as **3.0.0** (CHANGELOG entry is ready, marked unreleased).
 - Separate from this feature, shazzad/plugin-repo#78 tightens how the **existing** v3 API looks
-  up license codes and install URLs (found during this review). It is independent of #77, and
-  the plan is to review and deploy it on its own, ideally first.
+  up license codes and install URLs (found during this review). It is independent of the v4
+  work; merge it first so 2.8.0 carries it (the fix is then in both v3 and v4).

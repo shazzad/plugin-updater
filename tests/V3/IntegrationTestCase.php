@@ -67,7 +67,7 @@ abstract class IntegrationTestCase extends PHPUnitTestCase {
 	 */
 	protected function create_integration( array $overrides = [] ): Integration {
 		$defaults = [
-			'api_url'    => 'https://api.example.com/wp-json/wp-repo/v3',
+			'api_url'    => 'https://api.example.com/wp-json/wp-repo/v4',
 			'file'       => 'my-plugin/my-plugin.php',
 			'product_id' => '42',
 			'license'    => false,

@@ -10,7 +10,7 @@ no change; V2 is now stable (additive fixes only) and V3 takes new development.
 - New: `V3\Insights` — free wordpress.org plugin entry point. Appsero-style consent notice
   (Allow / No thanks, nonce'd, `manage_options`), nothing sent before consent, then a daily
   `wprepo_insights_track_{slug}` track plus `activate` / `deactivate` / `upgrade` / `optin`
-  events to `wp-repo-insights/v1/products/{key}/track`; `opt_out()` asks the server to delete
+  events to `{api_url}/products/{key}/track` on `wp-repo/v4`; `opt_out()` asks the server to delete
   the site's data. Loads no update or license code; free plugins ship only
   `src/V3/Insights.php` + `src/V3/Insights/` (README has the build strip recipe)
 - New: `V3\Insights\{Consent,Collector,Client,Scheduler,Notice}` — consent state + install
@@ -19,9 +19,8 @@ no change; V2 is now stable (additive fixes only) and V3 takes new development.
   consent; the scheduler; the notice
 - New: `V3\Integration` — commercial entry point. Same config, storage keys, transients, cron
   hook, license page, notices and update-row message as V2 (moving V2 → V3 keeps every saved
-  license), plus optional `insights_api_url` (default derived from `api_url`: `/wp-repo/v3` →
-  `/wp-repo-insights/v1`; an underivable `api_url` fires `_doing_it_wrong()` and leaves
-  tracking off). Tracking runs through the Insights parts in commercial mode — no consent step,
+  license). `api_url` moves from `wp-repo/v3` to `wp-repo/v4`, which serves updates, licensing
+  and Insights from one base (an `api_url` still on v3 fires `_doing_it_wrong()`). Tracking runs through the Insights parts in commercial mode — no consent step,
   no notice, license key included — exposed as `$insights_consent`, `$insights_collector`,
   `$insights_client`, `$insights_scheduler`
 - Changed (V3 vs V2): `Client::ping()` removed. The hourly `wprepo_sync_license_data_{name}`
@@ -48,7 +47,7 @@ no change; V2 is now stable (additive fixes only) and V3 takes new development.
 - Docs (review): README's V2 → V3 migration note lists the dropped `$admin_email` / `$admin_name`
   properties and `Client::ping()`, and that assigning `$integration->meta` / `->meta_callback`
   after construction does not reach the payload (use `setMeta()` / `setMetaCallback()`)
-- Requires the server side from `shazzad/plugin-repo` (`wp-repo-insights/v1` `track` +
+- Requires `shazzad/plugin-repo` 2.8.0+ on the server (the `wp-repo/v4` API with `track` +
   `optout`)
 
 ## 2.1.1 - 2026-09-15

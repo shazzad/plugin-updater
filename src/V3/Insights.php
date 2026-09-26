@@ -151,8 +151,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 		 * @param array $config {
 		 *     Insights configuration.
 		 *
-		 *     @type string         $api_url       Insights API base, e.g.
-		 *                                         `https://w4dev.com/wp-json/wp-repo-insights/v1`. Required.
+		 *     @type string         $api_url       Repo API base, e.g.
+		 *                                         `https://w4dev.com/wp-json/wp-repo/v4`. Required.
 		 *     @type string         $file          Plugin main file: __FILE__ or its plugin_basename() form. Required.
 		 *     @type string         $product_uid   `prod_…` uid on the repo server. Preferred.
 		 *     @type string         $product_id    Numeric product id. One of uid/id is required.
@@ -246,6 +246,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 
 			if ( \array_key_exists( 'notice', $config ) && false !== $config['notice'] && ! \is_array( $config['notice'] ) ) {
 				_doing_it_wrong( __METHOD__, 'Config key "notice" must be an array or false; using the defaults.', '3.0.0' );
+			}
+
+			if ( isset( $config['api_url'] ) && \is_string( $config['api_url'] ) && \preg_match( '#/wp-repo/v3/?$#', $config['api_url'] ) ) {
+				_doing_it_wrong( __METHOD__, 'Config "api_url" points at wp-repo/v3, which has no Insights routes; use wp-repo/v4.', '3.0.0' );
 			}
 
 			if ( \is_array( $config['notice'] ?? null ) ) {

@@ -13,7 +13,7 @@ class InsightsConfigTest extends TestCase {
 	public function config_populates_properties_and_wires_subsystems() {
 		$insights = $this->create_insights( [ 'name' => 'Adminkeep', 'privacy_url' => 'https://example.com/privacy' ] );
 
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo-insights/v1', $insights->api_url );
+		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4', $insights->api_url );
 		$this->assertSame( 'my-plugin/my-plugin.php', $insights->file );
 		$this->assertSame( 'my-plugin', $insights->slug );
 		$this->assertSame( 'prod_abc', $insights->get_product_key() );

@@ -3,6 +3,13 @@
 Date: 2026-09-26 · Status: agreed in session with Shazzad, built in the overnight run of the same date
 Repos: `shazzad/plugin-updater` (client, this repo) and `shazzad/plugin-repo` (server)
 
+> **Revised 2026-09-27 (Shazzad):** the Insights routes no longer live in a side namespace
+> `wp-repo-insights/v1`, and `V3\Integration` no longer derives an Insights URL from `api_url`
+> or accepts `insights_api_url`. The server's `wp-repo/v4` is now a full copy of v3 plus
+> `track` / `optout`, and both V3 entry points use one `api_url` =
+> `https://w4dev.com/wp-json/wp-repo/v4`. v3 is untouched. Sections below are updated to match;
+> "Hard constraints" 1 still holds for `wp-repo/v3`.
+
 ## Why
 
 W4 Post List uses Appsero Insights for usage data. We want the same capability in-house, on the
@@ -32,7 +39,7 @@ repo server we already run, so that:
 | File | Role | Loaded by |
 |---|---|---|
 | `Insights/Collector.php` | Builds the payload (site, admin, wp, server, users, plugins, meta) | both |
-| `Insights/Client.php` | `track( $event )`, `optout()` HTTP calls to `wp-repo-insights/v1` | both |
+| `Insights/Client.php` | `track( $event )`, `optout()` HTTP calls to `wp-repo/v4` | both |
 | `Insights/Scheduler.php` | Daily cron hook, activation/deactivation/upgrade events, last-send bookkeeping | both |
 | `Insights/Consent.php` | Consent state (`yes`/`no`/unset), token, `opt_in()` / `opt_out()` | both (commercial = always granted) |
 | `Insights/Notice.php` | Appsero-style admin notice + nonce'd Allow / No thanks handler | free only |
@@ -46,7 +53,7 @@ Free plugins keep only `src/V3/Insights.php` + `src/V3/Insights/` in their zip.
 ```php
 if ( class_exists( \Shazzad\PluginUpdater\V3\Insights::class ) ) {
     new \Shazzad\PluginUpdater\V3\Insights( [
-        'api_url'       => 'https://w4dev.com/wp-json/wp-repo-insights/v1', // required
+        'api_url'       => 'https://w4dev.com/wp-json/wp-repo/v4', // required
         'file'          => __FILE__,                                          // required
         'product_uid'   => 'prod_…',            // or product_id
         'product_id'    => '12',
@@ -68,9 +75,8 @@ Public API on the instance: `has_consent()`, `get_consent()` (`'yes'|'no'|''`), 
 
 ### Commercial usage
 
-`V3\Integration` takes the V2 config array unchanged (`api_url` = the existing
-`https://w4dev.com/wp-json/wp-repo/v3` update API) plus one optional key,
-`insights_api_url` (default: derived by replacing `/wp-repo/v3` with `/wp-repo-insights/v1`).
+`V3\Integration` takes the V2 config array unchanged, with `api_url` =
+`https://w4dev.com/wp-json/wp-repo/v4`, which serves updates, licensing and Insights.
 Updates, license check, license page, notices and update message behave exactly as V2. Storage
 keys, transients and the hourly `wprepo_sync_license_data_{license_name}` cron are the same as
 V2, so a plugin moving V2 → V3 keeps every saved license. Difference: the hourly sync no longer
@@ -164,7 +170,7 @@ run retries).
 
 ## Server — `plugin-repo`
 
-### Routes (new namespace `wp-repo-insights/v1`, public, `permission_callback` `__return_true`)
+### Routes (on `wp-repo/v4`, public, `permission_callback` `__return_true`)
 
 - `POST /products/{key}/track` — `{key}` = numeric id or `prod_` uid. 404 unknown product, 403
   when the product has install tracking off, 400 on missing `site.url` / `product_version` /

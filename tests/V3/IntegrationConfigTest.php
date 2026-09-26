@@ -12,7 +12,7 @@ class IntegrationConfigTest extends IntegrationTestCase {
 	public function config_populates_core_properties() {
 		$integration = $this->create_integration();
 
-		$this->assertSame( 'https://api.example.com/wp-json/wp-repo/v3', $integration->api_url );
+		$this->assertSame( 'https://api.example.com/wp-json/wp-repo/v4', $integration->api_url );
 		$this->assertSame( 'my-plugin/my-plugin.php', $integration->product_file );
 		$this->assertSame( 'my-plugin', $integration->product_slug );
 		$this->assertSame( '42', $integration->product_id );
@@ -84,7 +84,7 @@ class IntegrationConfigTest extends IntegrationTestCase {
 	/** @test */
 	public function menu_defaults_on_when_license_enabled_and_menu_omitted() {
 		$config = [
-			'api_url'    => 'https://api.example.com/wp-json/wp-repo/v3',
+			'api_url'    => 'https://api.example.com/wp-json/wp-repo/v4',
 			'file'       => 'my-plugin/my-plugin.php',
 			'product_id' => '42',
 			'license'    => true,

@@ -94,16 +94,6 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		public $product_name;
 
 		/**
-		 * Insights API base URL (`…/wp-json/wp-repo-insights/v1`). Empty when
-		 * it could not be resolved, in which case Insights is off.
-		 *
-		 * @since 3.0.0
-		 *
-		 * @var string
-		 */
-		public $insights_api_url = '';
-
-		/**
 		 * Custom metadata sent with every Insights track.
 		 * Values can be static or callable (resolved at send time).
 		 *
@@ -263,7 +253,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 * @param array $config {
 		 *     Integration configuration.
 		 *
-		 *     @type string      $api_url     URL of the API server. Required.
+		 *     @type string      $api_url     Repo API base, e.g. `https://w4dev.com/wp-json/wp-repo/v4`.
+		 *                                    Serves updates, licensing and Insights. Required.
 		 *     @type string      $file        Plugin main file: __FILE__ or its plugin_basename() form
 		 *                                    ("my-plugin/my-plugin.php") — both accepted. Required.
 		 *     @type string      $product_uid Opaque `prod_…` uid on the remote server. Preferred identity.
@@ -276,16 +267,12 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 *     @type array       $meta        Static metadata sent with Insights tracks. Same effect as setMeta().
 		 *     @type callable    $meta_callback Callback returning metadata at send time. Same effect as
 		 *                                    setMetaCallback().
-		 *     @type string      $insights_api_url Insights API base URL. Optional; by default derived from
-		 *                                    `api_url` by replacing its trailing `/wp-repo/v3` with
-		 *                                    `/wp-repo-insights/v1`.
 		 * }
 		 *
 		 * Unrecognized config keys and missing required keys (`api_url`, `file`) trigger a
 		 * `_doing_it_wrong()` notice in debug mode; construction always proceeds — a
-		 * misconfigured updater must never fatal the plugin embedding it. The same goes
-		 * for an `api_url` the Insights URL cannot be derived from: a notice, and
-		 * Insights stays off.
+		 * misconfigured updater must never fatal the plugin embedding it. An `api_url` on
+		 * `wp-repo/v3`, which has no Insights routes, draws a notice too.
 		 *
 		 * @since 3.0.0
 		 */
@@ -338,9 +325,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 			$this->updater = new Updater( $this );
 			$this->tracker = new Tracker( $this );
 
-			$this->insights_api_url = $this->resolve_insights_api_url( $config );
-
-			if ( '' !== $this->insights_api_url ) {
+			if ( \is_string( $this->api_url ) && '' !== $this->api_url ) {
 				$this->setup_insights();
 			}
 
@@ -374,7 +359,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 				return;
 			}
 
-			$known = [ 'api_url', 'file', 'product_uid', 'product_id', 'license', 'menu', 'meta', 'meta_callback', 'insights_api_url' ];
+			$known = [ 'api_url', 'file', 'product_uid', 'product_id', 'license', 'menu', 'meta', 'meta_callback' ];
 
 			foreach ( \array_diff( \array_keys( $config ), $known ) as $unknown ) {
 				_doing_it_wrong(
@@ -412,43 +397,15 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 					'3.0.0'
 				);
 			}
-		}
 
-		/**
-		 * Resolves the Insights API base URL: the explicit `insights_api_url`
-		 * when given, otherwise `api_url` with its trailing `/wp-repo/v3`
-		 * swapped for `/wp-repo-insights/v1`.
-		 *
-		 * An `api_url` of any other shape cannot be mapped; that fires a debug
-		 * notice and returns '' (Insights off) — never a fatal.
-		 *
-		 * @since 3.0.0
-		 *
-		 * @param array $config Constructor config.
-		 * @return string
-		 */
-		private function resolve_insights_api_url( array $config ) {
-			if ( isset( $config['insights_api_url'] ) && \is_string( $config['insights_api_url'] ) && '' !== $config['insights_api_url'] ) {
-				return \rtrim( $config['insights_api_url'], '/' );
-			}
-
-			$api_url = \is_string( $this->api_url ) ? \rtrim( $this->api_url, '/' ) : '';
-
-			if ( '' !== $api_url && \preg_match( '#/wp-repo/v3$#', $api_url ) ) {
-				return (string) \preg_replace( '#/wp-repo/v3$#', '/wp-repo-insights/v1', $api_url );
-			}
-
-			// An empty api_url already drew the missing-key notice.
-			if ( '' !== $api_url && \function_exists( '_doing_it_wrong' ) ) {
+			if ( isset( $config['api_url'] ) && \is_string( $config['api_url'] ) && \preg_match( '#/wp-repo/v3/?$#', $config['api_url'] ) ) {
 				_doing_it_wrong(
 					__METHOD__,
-					'Cannot derive the Insights URL from "api_url" (expected it to end in "/wp-repo/v3");'
-					. ' pass "insights_api_url". Insights tracking is off.',
+					'Config "api_url" points at wp-repo/v3, which has no Insights routes. V3 of this'
+					. ' library needs the wp-repo/v4 API (e.g. https://w4dev.com/wp-json/wp-repo/v4).',
 					'3.0.0'
 				);
 			}
-
-			return '';
 		}
 
 		/**
@@ -474,7 +431,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 				]
 			);
 			$this->insights_client    = new InsightsClient(
-				$this->insights_api_url,
+				$this->api_url,
 				$this->get_api_product_key(),
 				$this->insights_collector,
 				$this->insights_consent

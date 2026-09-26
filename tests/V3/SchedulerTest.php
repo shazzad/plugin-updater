@@ -153,7 +153,7 @@ class SchedulerTest extends TestCase {
 		$insights->client->track( 'daily' );
 
 		list( $url, $args ) = $this->http[0];
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo-insights/v1/products/prod_abc/track', $url );
+		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/products/prod_abc/track', $url );
 		$this->assertSame( 5, $args['timeout'] );
 		$this->assertSame( 'application/json', $args['headers']['Content-Type'] );
 		$this->assertIsString( $args['body'] );
@@ -167,7 +167,7 @@ class SchedulerTest extends TestCase {
 
 		$insights->client->track( 'daily' );
 
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo-insights/v1/products/12/track', $this->http[0][0] );
+		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/products/12/track', $this->http[0][0] );
 	}
 
 	/** @test */
@@ -210,13 +210,13 @@ class SchedulerTest extends TestCase {
 				},
 			]
 		);
-		$client    = new Client( 'https://repo.example.com/wp-json/wp-repo-insights/v1/', 'prod_abc', $collector, $consent );
+		$client    = new Client( 'https://repo.example.com/wp-json/wp-repo/v4/', 'prod_abc', $collector, $consent );
 		$scheduler = new Scheduler( 'my-plugin/my-plugin.php', 'my-plugin', $client, $collector, $consent );
 
 		$scheduler->product_activated();
 
 		$this->assertSame( 'daily', $this->cron['wprepo_insights_track_my-plugin'] );
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo-insights/v1/products/prod_abc/track', $this->http[0][0] );
+		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/products/prod_abc/track', $this->http[0][0] );
 		$this->assertSame( 'commercial', $this->http_body()['mode'] );
 		$this->assertSame( 'LIC-1', $this->http_body()['license'] );
 		$this->assertSame( 'activate', $this->http_body()['event'] );

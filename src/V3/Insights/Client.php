@@ -19,7 +19,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 	/**
 	 * Class Client
 	 *
-	 * Talks to the repo server's `wp-repo-insights/v1` routes. This is the
+	 * Talks to the repo server's Insights routes (`wp-repo/v4` track/optout). This is the
 	 * one place data leaves the site, and it refuses to send anything unless
 	 * Consent says yes — every caller (Scheduler, opt-in, opt-out) goes
 	 * through here, so the rule cannot be bypassed by a new call path.
@@ -41,7 +41,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		const TIMEOUT = 5;
 
 		/**
-		 * Insights API base, e.g. `https://w4dev.com/wp-json/wp-repo-insights/v1`.
+		 * Repo API base, e.g. `https://w4dev.com/wp-json/wp-repo/v4`.
 		 *
 		 * @since 3.0.0
 		 *

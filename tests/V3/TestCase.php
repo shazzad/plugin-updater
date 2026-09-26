@@ -228,7 +228,7 @@ abstract class TestCase extends PHPUnitTestCase {
 	protected function config( array $overrides = [] ): array {
 		return array_merge(
 			[
-				'api_url'     => 'https://repo.example.com/wp-json/wp-repo-insights/v1',
+				'api_url'     => 'https://repo.example.com/wp-json/wp-repo/v4',
 				'file'        => WP_PLUGIN_DIR . '/my-plugin/my-plugin.php',
 				'product_uid' => 'prod_abc',
 				'product_id'  => '12',

@@ -55,7 +55,7 @@ class IntegrationInsightsTest extends TestCase {
 	private function commercial_config( array $overrides = [] ): array {
 		return array_merge(
 			[
-				'api_url'    => 'https://repo.example.com/wp-json/wp-repo/v3',
+				'api_url'    => 'https://repo.example.com/wp-json/wp-repo/v4',
 				'file'       => WP_PLUGIN_DIR . '/my-plugin/my-plugin.php',
 				'product_id' => '12',
 				'license'    => true,
@@ -98,58 +98,63 @@ class IntegrationInsightsTest extends TestCase {
 	}
 
 	/** @test */
-	public function insights_url_defaults_to_the_insights_namespace_next_to_the_update_api() {
+	public function insights_use_the_same_api_url_as_updates() {
 		$integration = $this->create_integration();
 
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo-insights/v1', $integration->insights_api_url );
 		$this->assertInstanceOf( Consent::class, $integration->insights_consent );
 		$this->assertInstanceOf( Collector::class, $integration->insights_collector );
 		$this->assertInstanceOf( InsightsClient::class, $integration->insights_client );
 		$this->assertInstanceOf( Scheduler::class, $integration->insights_scheduler );
 		$this->assertSame(
-			'https://repo.example.com/wp-json/wp-repo-insights/v1/products/12/track',
+			'https://repo.example.com/wp-json/wp-repo/v4/products/12/track',
 			$integration->insights_client->get_url( 'track' )
 		);
 		$this->assertSame( [], $this->doing_it_wrong );
 	}
 
 	/** @test */
-	public function insights_url_derivation_tolerates_a_trailing_slash_and_uses_the_uid() {
+	public function insights_url_tolerates_a_trailing_slash_and_uses_the_uid() {
 		$integration = $this->create_integration(
 			[
-				'api_url'     => 'https://repo.example.com/wp-json/wp-repo/v3/',
+				'api_url'     => 'https://repo.example.com/wp-json/wp-repo/v4/',
 				'product_uid' => 'prod_abc',
 			]
 		);
 
 		$this->assertSame(
-			'https://repo.example.com/wp-json/wp-repo-insights/v1/products/prod_abc/track',
+			'https://repo.example.com/wp-json/wp-repo/v4/products/prod_abc/track',
 			$integration->insights_client->get_url( 'track' )
 		);
 	}
 
 	/** @test */
-	public function explicit_insights_url_wins_over_the_derived_one() {
-		$integration = $this->create_integration(
-			[
-				'api_url'          => 'https://updates.example.net/api',
-				'insights_api_url' => 'https://insights.example.net/v1/',
-			]
-		);
+	public function insights_api_url_is_no_longer_a_config_key() {
+		$integration = $this->create_integration( [ 'insights_api_url' => 'https://insights.example.net/v1' ] );
 
-		$this->assertSame( 'https://insights.example.net/v1', $integration->insights_api_url );
-		$this->assertSame( 'https://insights.example.net/v1/products/12/track', $integration->insights_client->get_url( 'track' ) );
-		$this->assertSame( [], $this->doing_it_wrong, 'insights_api_url is a known key and makes the odd api_url fine.' );
+		$this->assertCount( 1, $this->doing_it_wrong );
+		$this->assertStringContainsString( 'Unrecognized config key "insights_api_url"', $this->doing_it_wrong[0] );
+		$this->assertSame(
+			'https://repo.example.com/wp-json/wp-repo/v4/products/12/track',
+			$integration->insights_client->get_url( 'track' )
+		);
 	}
 
 	/** @test */
-	public function underivable_api_url_notices_and_leaves_insights_off_without_breaking_updates() {
-		$integration = $this->create_integration( [ 'api_url' => 'https://updates.example.net/api' ] );
+	public function a_v3_api_url_draws_a_notice() {
+		$integration = $this->create_integration( [ 'api_url' => 'https://repo.example.com/wp-json/wp-repo/v3' ] );
 
 		$this->assertCount( 1, $this->doing_it_wrong );
-		$this->assertStringContainsString( 'insights_api_url', $this->doing_it_wrong[0] );
+		$this->assertStringContainsString( 'wp-repo/v4', $this->doing_it_wrong[0] );
+		$this->assertNotNull( $integration->updater );
+	}
 
-		$this->assertSame( '', $integration->insights_api_url );
+	/** @test */
+	public function an_empty_api_url_leaves_insights_off_without_breaking_the_rest() {
+		$integration = $this->create_integration( [ 'api_url' => '' ] );
+
+		$this->assertCount( 1, $this->doing_it_wrong );
+		$this->assertStringContainsString( 'Missing required config key "api_url"', $this->doing_it_wrong[0] );
+
 		$this->assertNull( $integration->insights_consent );
 		$this->assertNull( $integration->insights_collector );
 		$this->assertNull( $integration->insights_client );
@@ -240,7 +245,7 @@ class IntegrationInsightsTest extends TestCase {
 		$this->fire( 'wprepo_insights_track_my-plugin' );
 
 		$this->assertCount( 1, $this->http );
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo-insights/v1/products/12/track', $this->http[0][0] );
+		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/products/12/track', $this->http[0][0] );
 		$this->assertSame( 'daily', $this->http_body()['event'] );
 		$this->assertSame( 'commercial', $this->http_body()['mode'] );
 		$this->assertSame( 'LIC-12', $this->http_body()['license'] );
@@ -268,7 +273,7 @@ class IntegrationInsightsTest extends TestCase {
 		$this->fire( 'wprepo_sync_license_data_my-plugin12' );
 
 		$this->assertCount( 1, $this->requests );
-		$this->assertStringContainsString( '/wp-repo/v3/products/12/check_license', $this->requests[0] );
+		$this->assertStringContainsString( '/wp-repo/v4/products/12/check_license', $this->requests[0] );
 		$this->assertSame( [ 'status' => 'active' ], $this->options['my-plugin12_data'] );
 		$this->assertSame( [], $this->http, 'The hourly sync must not POST while the daily track is not due.' );
 
@@ -307,7 +312,7 @@ class IntegrationInsightsTest extends TestCase {
 		$this->fire( 'wprepo_sync_license_data_my-plugin12' );
 
 		$this->assertCount( 1, $this->http );
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo-insights/v1/products/12/track', $this->http[0][0] );
+		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/products/12/track', $this->http[0][0] );
 		$this->assertSame( 'daily', $this->http_body()['event'] );
 		$this->assertSame( 'daily', $this->cron['wprepo_insights_track_my-plugin'], 'The daily event was not re-created.' );
 		$this->assertEqualsWithDelta( time(), $this->options['my-plugin_insights_last_send'], 5 );
@@ -332,7 +337,7 @@ class IntegrationInsightsTest extends TestCase {
 	public function hourly_sync_with_insights_off_still_checks_the_license() {
 		$this->options['my-plugin12_code'] = 'LIC-12';
 
-		$integration = $this->create_integration( [ 'api_url' => 'https://updates.example.net/wp-json/wp-repo/v2' ] );
+		$integration = $this->create_integration( [ 'api_url' => '' ] );
 
 		$this->assertNull( $integration->insights_scheduler );
 
