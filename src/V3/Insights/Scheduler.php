@@ -349,11 +349,17 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 		 * Deactivation: send `deactivate` with consent, and always clear the
 		 * cron. Options stay so a re-activation does not ask again.
 		 *
+		 * On a network deactivation the cron is cleared on every site of the
+		 * network too (each site scheduled its own). Only the current site
+		 * sends a `deactivate` track: one request per site could stall the
+		 * deactivation on a large network.
+		 *
 		 * @since 3.0.0
 		 *
+		 * @param bool $network_wide Whether the plugin is being network-deactivated.
 		 * @return void
 		 */
-		public function product_deactivated() {
+		public function product_deactivated( $network_wide = false ) {
 			$this->collector->product_status = 'inactive';
 
 			if ( $this->consent->is_granted() ) {
@@ -361,6 +367,49 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 			}
 
 			$this->unschedule();
+
+			if ( $network_wide && is_multisite() ) {
+				$hook = $this->get_hook_name();
+
+				self::each_site(
+					function () use ( $hook ) {
+						wp_clear_scheduled_hook( $hook );
+					}
+				);
+			}
+		}
+
+		/**
+		 * Runs a callback once per site: on each site of a multisite network
+		 * (switched to it), or once on a single site.
+		 *
+		 * @since 3.0.0
+		 *
+		 * @param callable $callback Called with no arguments.
+		 * @return void
+		 */
+		public static function each_site( callable $callback ) {
+			if ( ! is_multisite() || ! \function_exists( 'get_sites' ) || ! \function_exists( 'switch_to_blog' ) ) {
+				\call_user_func( $callback );
+				return;
+			}
+
+			$site_ids = get_sites(
+				[
+					'fields' => 'ids',
+					'number' => 0,
+				]
+			);
+
+			foreach ( (array) $site_ids as $site_id ) {
+				switch_to_blog( (int) $site_id );
+
+				try {
+					\call_user_func( $callback );
+				} finally {
+					restore_current_blog();
+				}
+			}
 		}
 
 		/**

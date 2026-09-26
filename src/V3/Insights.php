@@ -374,6 +374,63 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 
 			return $result;
 		}
+
+		/**
+		 * Removes everything Insights stored for a plugin: the consent, token,
+		 * last-send and pending-opt-out options and the daily cron — on every
+		 * site of a multisite network. Sends nothing.
+		 *
+		 * Call it from the plugin's uninstall routine: `uninstall.php` (pass
+		 * `WP_UNINSTALL_PLUGIN`) or a `register_uninstall_hook()` callback in
+		 * the main file (pass `__FILE__`).
+		 *
+		 * @since 3.0.0
+		 *
+		 * @param string $file Plugin main file: absolute path or plugin_basename() form.
+		 * @return void
+		 */
+		public static function uninstall( $file ) {
+			$file = (string) $file;
+
+			if ( $file && \function_exists( 'plugin_basename' ) ) {
+				$file = plugin_basename( $file );
+			}
+
+			$slug = sanitize_key( Collector::basename_to_slug( $file ) );
+
+			if ( '' === $slug ) {
+				return;
+			}
+
+			Scheduler::each_site(
+				function () use ( $slug ) {
+					foreach ( self::get_option_keys( $slug ) as $key ) {
+						delete_option( $key );
+					}
+
+					wp_clear_scheduled_hook( "wprepo_insights_track_{$slug}" );
+				}
+			);
+		}
+
+		/**
+		 * Every option key Insights stores for a slug.
+		 *
+		 * @since 3.0.0
+		 *
+		 * @param string $slug Storage slug.
+		 * @return string[]
+		 */
+		public static function get_option_keys( $slug ) {
+			$consent = new Consent( $slug );
+
+			return [
+				$consent->get_consent_key(),
+				$consent->get_token_key(),
+				"{$slug}_insights_last_send",
+				$consent->get_optout_pending_key(),
+			];
+		}
 	}
 
 endif;
