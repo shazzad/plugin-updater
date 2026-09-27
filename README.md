@@ -8,7 +8,7 @@ A comprehensive WordPress plugin updater library that enables automatic updates,
 - **License Management**: Built-in license key verification and validation system
 - **Admin Interface**: Clean WordPress admin interface for license management
 - **Plugin Tracking**: Track plugin activation, deactivation, and usage statistics
-- **Insights (V3)**: Appsero-style usage data — opt-in with a consent notice for free wordpress.org plugins, implied for commercial plugins
+- **Insights (V4)**: Appsero-style usage data — opt-in with a consent notice for free wordpress.org plugins, implied for commercial plugins
 - **WordPress Integration**: Hooks into WordPress core update system
 - **Flexible Configuration**: Customizable API endpoints, menu placement, and licensing options
 
@@ -28,20 +28,22 @@ composer require shazzad/plugin-updater
 
 The library ships one namespace per major version, side by side:
 
-- **`Shazzad\PluginUpdater\V3`** (`src/V3/`) — active since 3.0.0. **New consumers should use
+- **`Shazzad\PluginUpdater\V4`** (`src/V4/`) — active since 4.0.0. **New consumers should use
   this.** Two entry points:
-  - **`V3\Insights`** — for **free wordpress.org plugins**: usage tracking only, after an
+  - **`V4\Insights`** — for **free wordpress.org plugins**: usage tracking only, after an
     explicit opt-in through an Appsero-style consent notice. No update or license code at all;
     ship only the Insights files (see [Shipping a free wp.org plugin](#shipping-a-free-wporg-plugin)).
-  - **`V3\Integration`** — for **commercial plugins**: everything V2 does (updates, license page,
+  - **`V4\Integration`** — for **commercial plugins**: everything V2 does (updates, license page,
     notices, update-row message), with install tracking moved from the old `/ping` to Insights
     (consent implied, license key in the payload). Same option keys, transients and cron hook
-    as V2/V1, so a plugin moving to V3 keeps every saved license.
+    as V2/V1, so a plugin moving to V4 keeps every saved license.
 
   Both talk to the repo server's **`wp-repo/v4`** API — one `api_url`
-  (`https://w4dev.com/wp-json/wp-repo/v4`) serves updates, licensing and Insights. `wp-repo/v3`
-  has no Insights routes and stays for V1/V2 clients. Requires
-  `composer require shazzad/plugin-updater:^3.0` and `shazzad/plugin-repo` 2.8.0+ on the server.
+  (`https://w4dev.com/wp-json/wp-repo/v4`) serves updates, licensing and Insights, each plugin
+  addressed as `{api_url}/plugins/{uid}/…`. Both require **`product_uid`** (the `prod_…` uid):
+  v4 accepts no numeric id. `wp-repo/v3` has no Insights routes and stays, frozen, for V1/V2
+  clients. Requires `composer require shazzad/plugin-updater:^4.0` and `shazzad/plugin-repo`
+  2.9.0+ on the server (the `plugins/{uid}` routes).
 - **`Shazzad\PluginUpdater\V2`** (`src/V2/`) — stable: additive fixes only. Config-array
   constructor, license admin notices, and an explanation line in the plugins-list update row.
 - **`Shazzad\PluginUpdater`** (`src/`) — V1, frozen: critical fixes only. Existing plugins keep
@@ -51,16 +53,20 @@ The library ships one namespace per major version, side by side:
 The majors never share classes, so plugins on different library versions coexist on one site
 without the first-loader-wins fatal V1 was exposed to.
 
-## Quick Start (V3, free plugin — Insights)
+**The namespace number matches the server API it calls:** `V4` talks to `wp-repo/v4`, and a
+future `V5` would talk to `wp-repo/v5`. The one exception is legacy: V1 and `V2` both call
+`wp-repo/v3` (V3 was never released under that name — it became V4 before shipping).
+
+## Quick Start (V4, free plugin — Insights)
 
 ```php
 <?php
 // Nothing is sent until an admin clicks "Allow" in the notice.
-if ( class_exists( \Shazzad\PluginUpdater\V3\Insights::class ) ) {
-    $insights = new \Shazzad\PluginUpdater\V3\Insights( [
+if ( class_exists( \Shazzad\PluginUpdater\V4\Insights::class ) ) {
+    $insights = new \Shazzad\PluginUpdater\V4\Insights( [
         'api_url'       => 'https://w4dev.com/wp-json/wp-repo/v4', // required
         'file'          => __FILE__,                               // required
-        'product_uid'   => 'prod_xxxxxxxxxxxxxxxxxxxx',            // or product_id
+        'product_uid'   => 'prod_xxxxxxxxxxxxxxxxxxxx',            // required
         'name'          => 'My Plugin',          // shown in the notice; default = plugin header Name
         'privacy_url'   => 'https://example.com/privacy', // "Learn more" link; omitted when empty
         'notice'        => [
@@ -81,8 +87,8 @@ and sends nothing. On the instance: `has_consent()`, `get_consent()` (`'yes'|'no
 on `admin_init` and daily for up to 7 days), and `->collector->collect()` to show exactly what
 would be sent.
 
-What is sent (JSON, `POST {api_url}/products/{uid-or-id}/track`): event, plugin version and
-status, site URL/name/locale plus multisite and local-site flags, the site's `admin_email` and
+What is sent (JSON, `POST {api_url}/plugins/{uid}/track`): event, plugin version and
+status (`plugin_version`, `plugin_status`), site URL/name/locale plus multisite and local-site flags, the site's `admin_email` and
 the first administrator's display name, WordPress version/memory limit/debug mode, the active
 theme (name, version, parent), server versions and PHP limits, user counts by role,
 active/inactive plugin counts and the active plugin list with versions (max 200), and your
@@ -91,16 +97,16 @@ active/inactive plugin counts and the active plugin list with versions (max 200)
 `meta` or `meta_callback` is set, and appends any `notice.items` you pass — describe what your
 `meta` holds there.
 
-## Quick Start (V3, commercial plugin)
+## Quick Start (V4, commercial plugin)
 
 ```php
 <?php
-if ( class_exists( \Shazzad\PluginUpdater\V3\Integration::class ) ) {
-    new \Shazzad\PluginUpdater\V3\Integration( [
+if ( class_exists( \Shazzad\PluginUpdater\V4\Integration::class ) ) {
+    new \Shazzad\PluginUpdater\V4\Integration( [
         'api_url'     => 'https://w4dev.com/wp-json/wp-repo/v4',
         'file'        => __FILE__,
-        'product_uid' => 'prod_xxxxxxxxxxxxxxxxxxxx',
-        'product_id'  => '12',
+        'product_uid' => 'prod_xxxxxxxxxxxxxxxxxxxx', // required
+        'product_id'  => '12', // only if the plugin shipped on V1: reaches id-keyed licenses
         'license'     => true,
         'menu'        => [ 'parent' => 'options-general.php' ],
         'meta'        => [ 'channel' => 'direct' ], // optional, sent with every track
@@ -109,15 +115,20 @@ if ( class_exists( \Shazzad\PluginUpdater\V3\Integration::class ) ) {
 ```
 
 The config is the V2 array, with `api_url` on `wp-repo/v4`: the same base serves updates,
-licensing and Insights. An `api_url` still on `wp-repo/v3` (copied from a V2 config) fires
+licensing and Insights. `product_uid` is **required**: every call goes to
+`{api_url}/plugins/{uid}/…`, and v4 answers a numeric id with `404 rest_no_route`. Without a
+uid, `_doing_it_wrong()` fires and no update, license or Insights call is made (the plugin
+still loads). `product_id` is never sent; it only lets a plugin that shipped on V1 reach the
+licenses its customers saved under id-based keys. An `api_url` still on `wp-repo/v3` (copied from a V2 config) fires
 `_doing_it_wrong()` and leaves tracking off — v3 has no Insights routes (updates and licensing
 still work). Tracking needs no consent here and
 never shows a notice; the stored license key is included so the server can bind the install.
 The Insights parts are public properties: `$insights_consent`, `$insights_collector`,
 `$insights_client`, `$insights_scheduler` (all `null` when tracking is off).
 
-Moving a plugin from V2: bump to `^3.0`, change `V2` to `V3` in the namespace and `api_url`
-from `…/wp-repo/v3` to `…/wp-repo/v4`. Saved
+Moving a plugin from V2: bump to `^4.0`, change `V2` to `V4` in the namespace, `api_url`
+from `…/wp-repo/v3` to `…/wp-repo/v4`, and make sure the config has `product_uid` (a V2 config
+with only `product_id` sends nothing on V4). Saved
 licenses, the license page and the hourly `wprepo_sync_license_data_{name}` cron carry over.
 Check your plugin for these V2 surfaces, which changed:
 
@@ -134,12 +145,12 @@ Check your plugin for these V2 surfaces, which changed:
 ## Shipping a free wp.org plugin
 
 wordpress.org guideline 8 forbids a plugin from updating itself from anywhere but wordpress.org,
-and reviewers read `vendor/`. `V3\Insights` never loads update or license code (a test guards
-this), but the package also contains V1, V2 and the commercial V3 files — **strip them from the
+and reviewers read `vendor/`. `V4\Insights` never loads update or license code (a test guards
+this), but the package also contains V1, V2 and the commercial V4 files — **strip them from the
 release zip**. Keep only:
 
-- `vendor/shazzad/plugin-updater/src/V3/Insights.php`
-- `vendor/shazzad/plugin-updater/src/V3/Insights/`
+- `vendor/shazzad/plugin-updater/src/V4/Insights.php`
+- `vendor/shazzad/plugin-updater/src/V4/Insights/`
 - Composer's own autoload files (`vendor/autoload.php`, `vendor/composer/`)
 
 Then regenerate the autoloader so no classmap entry points at a deleted file (with a stale
@@ -151,10 +162,10 @@ PKG=vendor/shazzad/plugin-updater
 
 # Everything in the package dir except src/ (composer.json, README, CHANGELOG, …)
 find "$PKG" -mindepth 1 -maxdepth 1 ! -name src -exec rm -rf {} +
-# Everything in src/ except V3/ (V1 files and V2/)
-find "$PKG/src" -mindepth 1 -maxdepth 1 ! -name V3 -exec rm -rf {} +
-# Everything in V3/ except the Insights entry point and its folder
-find "$PKG/src/V3" -mindepth 1 -maxdepth 1 ! -name Insights.php ! -name Insights -exec rm -rf {} +
+# Everything in src/ except V4/ (V1 files and V2/)
+find "$PKG/src" -mindepth 1 -maxdepth 1 ! -name V4 -exec rm -rf {} +
+# Everything in V4/ except the Insights entry point and its folder
+find "$PKG/src/V4" -mindepth 1 -maxdepth 1 ! -name Insights.php ! -name Insights -exec rm -rf {} +
 
 composer dump-autoload --no-dev --optimize
 
@@ -191,7 +202,7 @@ always proceeds. `setMeta()`, `setMetaCallback()`, and `setProductUid()` are sti
 as chainable setters. The `shazzad-plugin-updater-test` plugin is a working V2 example
 (`product_id` 99, license on, custom menu label, `setMetaCallback()` + `setMeta()` chained).
 
-Moving a V2 plugin to V3 is a namespace change — see the V3 commercial quick start above.
+Moving a V2 plugin to V4 is a namespace change — see the V4 commercial quick start above.
 
 ## Quick Start (V1, legacy)
 
@@ -233,7 +244,7 @@ if ( class_exists( \Shazzad\PluginUpdater\Integration::class ) ) {
         ├── LicensePage.php # License admin page
         ├── Notices.php     # Dismissible "enter license" / "license expired" notices
         └── UpdateMessage.php # Explanation line in the plugins-list update row
-/src/V3/                    # V3 — namespace Shazzad\PluginUpdater\V3 — active
+/src/V4/                    # V4 — namespace Shazzad\PluginUpdater\V4 — active
 ├── Insights.php            # FREE entry point: consent notice + tracking, nothing else
 ├── Insights/               # Shared by both entry points (free plugins ship only these + Insights.php)
 │   ├── Consent.php         # Consent state (yes/no/unset; always yes in commercial mode) and install token
@@ -264,20 +275,21 @@ if ( class_exists( \Shazzad\PluginUpdater\Integration::class ) ) {
 | `meta`          | array         | `[]`    | Static ping metadata — same as `setMeta()`                                                    |
 | `meta_callback` | callable      | `null`  | Builds ping metadata at ping time — same as `setMetaCallback()`                               |
 
-### V3 Config Keys
+### V4 Config Keys
 
-`V3\Integration` (commercial) takes exactly the V2 keys above. `api_url` is the `wp-repo/v4`
+`V4\Integration` (commercial) takes exactly the V2 keys above. `api_url` is the `wp-repo/v4`
 base (e.g. `https://w4dev.com/wp-json/wp-repo/v4`), used for updates, licensing and Insights;
-`meta` / `meta_callback` are now sent with Insights tracks.
+`product_uid` is **required** (it is the only identifier in v4 URLs; `product_id` is optional and
+only reaches id-keyed V1 licenses); `meta` / `meta_callback` are now sent with Insights tracks.
 
-`V3\Insights` (free):
+`V4\Insights` (free):
 
 | Key             | Type          | Default            | Description                                                                 |
 | --------------- | ------------- | ------------------ | --------------------------------------------------------------------------- |
 | `api_url`       | string        | -                  | **Required.** Repo API base, e.g. `https://w4dev.com/wp-json/wp-repo/v4` |
 | `file`          | string        | -                  | **Required.** `__FILE__` or its `plugin_basename()` form                   |
-| `product_uid`   | string        | `''`               | `prod_…` uid. One of `product_uid` / `product_id` is required               |
-| `product_id`    | string        | `''`               | Numeric product id                                                          |
+| `product_uid`   | string        | -                  | **Required.** `prod_…` uid. Without it nothing is sent and no notice is shown |
+| `product_id`    | string        | `''`               | Numeric product id. Optional, never sent                                    |
 | `name`          | string        | plugin header Name | Name shown in the notice                                                    |
 | `privacy_url`   | string        | `''`               | "Learn more" link in the notice; omitted when empty                         |
 | `notice`        | array\|false | `[]`               | `screens` (screen ids; default every admin screen), `text` (override, `%s` = name), `show_callback` (extra gate), `items` (extra "What we collect" lines, strings); `false` = no notice |
@@ -290,21 +302,21 @@ opt-out awaiting retry); cron hook `wprepo_insights_track_{slug}`. Deactivation 
 (on every site of the network when network-deactivated) and keeps the options, so a
 re-activation does not ask again.
 
-Remove them on uninstall with `\Shazzad\PluginUpdater\V3\Insights::uninstall( $file )` — it
+Remove them on uninstall with `\Shazzad\PluginUpdater\V4\Insights::uninstall( $file )` — it
 deletes the four options and the cron on every site of a multisite network and sends nothing.
-It works for commercial `V3\Integration` plugins too (same keys; the consent option is simply
+It works for commercial `V4\Integration` plugins too (same keys; the consent option is simply
 absent there).
 
 ```php
 // uninstall.php
 defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 require __DIR__ . '/vendor/autoload.php';
-\Shazzad\PluginUpdater\V3\Insights::uninstall( WP_UNINSTALL_PLUGIN );
+\Shazzad\PluginUpdater\V4\Insights::uninstall( WP_UNINSTALL_PLUGIN );
 
 // …or in the main plugin file (the callback must be a static method or function):
 register_uninstall_hook( __FILE__, 'my_plugin_uninstall' );
 function my_plugin_uninstall() {
-    \Shazzad\PluginUpdater\V3\Insights::uninstall( __FILE__ );
+    \Shazzad\PluginUpdater\V4\Insights::uninstall( __FILE__ );
 }
 ```
 
@@ -352,7 +364,11 @@ new \Shazzad\PluginUpdater\Integration(
 
 ## API Server Requirements
 
-Your API server should provide the following endpoints:
+Your API server should provide the following endpoints. The `products/{product_id}` routes
+below are the frozen `wp-repo/v3` API that V1 and V2 call. V4 calls the `wp-repo/v4` routes
+instead — `GET /plugins/{uid}/updates`, `/details`, `/check_license` and the Insights routes
+(see [below](#insights-endpoints-v4)) — with the same response bodies; the full v4 contract is
+`docs/v4-api.md` in `shazzad/plugin-repo`.
 
 ### Update Check Endpoint
 
@@ -427,18 +443,19 @@ The `renewal_url` field is optional in the license verification response. When p
 
 A static URL without placeholders (e.g., `https://example.com/renew`) is also supported.
 
-### Insights Endpoints (V3)
+### Insights Endpoints (V4)
 
 ```
-POST /wp-json/wp-repo/v4/products/{product_uid_or_id}/track
-POST /wp-json/wp-repo/v4/products/{product_uid_or_id}/optout
+POST /wp-json/wp-repo/v4/plugins/{uid}/track
+POST /wp-json/wp-repo/v4/plugins/{uid}/optout
 ```
 
-`track` takes the JSON payload described in the V3 quick start (`event`, `mode`, `token`,
-`product_version`, `product_status`, `site`, `admin`, `wp`, `server`, `users`, `plugins`,
-`license` for commercial installs, `meta`) and answers 202. `optout` takes
-`{ site_url, token }` and deletes the install's data when the token matches. Both are served by
-`shazzad/plugin-repo` 2.8.0+ (not available on `wp-repo/v3`).
+`{uid}` is the `prod_…` uid; a numeric id is `404 rest_no_route`. `track` takes the JSON
+payload described in the V4 quick start (`event`, `mode`, `token`, `plugin_version`,
+`plugin_status`, `site`, `admin`, `wp`, `server`, `users`, `plugins`, `license` for commercial
+installs, `meta`) and answers 202; the old `product_version` / `product_status` names are a 400
+there. `optout` takes `{ site_url, token }` and deletes the install's data when the token
+matches. Both are served by `shazzad/plugin-repo` 2.9.0+ (not available on `wp-repo/v3`).
 
 ### Ping Endpoint (V1/V2)
 
@@ -446,7 +463,7 @@ POST /wp-json/wp-repo/v4/products/{product_uid_or_id}/optout
 POST /products/{product_id}/ping
 ```
 
-Used by V1 and V2 for tracking plugin installations and status (V3 uses the Insights endpoints above). Sends site environment data and optional custom metadata.
+Used by V1 and V2 for tracking plugin installations and status (V4 uses the Insights endpoints above). Sends site environment data and optional custom metadata.
 
 **Request body:**
 
@@ -501,16 +518,17 @@ Alternatively, `setMetaCallback()` accepts a single closure that builds the whol
 ```
 
 - **Static values** (strings, numbers) are sent as-is
-- **Closures** are called at each ping and the return value is sent. In V1 only `Closure` instances are resolved (for `setMetaCallback()` too). In V2 and V3 the callback may be any callable, and `meta` values that are Closures or array-callables are resolved — plain strings always stay data even when they happen to name a function
+- **Closures** are called at each ping and the return value is sent. In V1 only `Closure` instances are resolved (for `setMetaCallback()` too). In V2 and V4 the callback may be any callable, and `meta` values that are Closures or array-callables are resolved — plain strings always stay data even when they happen to name a function
 - When both are used, the `setMetaCallback()` array is built first and `setMeta()` entries are merged over it — on a key conflict, `setMeta()` wins
 - Metadata is synced on every ping — keys removed from `setMeta()` are deleted from the server
-- The site admin name and email are always sent automatically as top-level ping fields (`admin_name`, `admin_email`) — no metadata entries needed for those (in V3 they are in the Insights payload's `admin` block)
-- In V3 metadata goes out with each Insights track (daily and on activate/deactivate/upgrade) instead of the hourly ping
+- The site admin name and email are always sent automatically as top-level ping fields (`admin_name`, `admin_email`) — no metadata entries needed for those (in V4 they are in the Insights payload's `admin` block)
+- In V4 metadata goes out with each Insights track (daily and on activate/deactivate/upgrade) instead of the hourly ping
 - The server environment is also reported automatically as top-level ping fields (`php_version`, `db_version`, `server_software`) — do not duplicate these in metadata
 
 ## Product uid
 
-In V2 the uid is simply the `product_uid` config key (see above). In V1, multiple plugins may bundle this library as a dependency, and the oldest loaded copy wins the `class_exists()` race — the `setProductUid()` method may not exist in the loaded class. Use a guard to detect it, then call it to set the opaque product uid (format: `prod_…`). When set, API requests address the product by uid instead of the enumerable numeric id, and licenses are stored under uid-based option keys; when unset, numeric `product_id` behavior is unchanged. On first call (or on V2 construction with a `product_uid`), existing id-based licenses are automatically cloned to uid-based keys; old copies are retained for backward compatibility until a future prune release (tracked as [issue #24](https://github.com/shazzad/plugin-updater/issues/24); it will ship in V2, never in the frozen V1 namespace).
+In V2 the uid is simply the `product_uid` config key (see above); in V4 that key is required and
+API URLs never use the numeric id. In V1, multiple plugins may bundle this library as a dependency, and the oldest loaded copy wins the `class_exists()` race — the `setProductUid()` method may not exist in the loaded class. Use a guard to detect it, then call it to set the opaque product uid (format: `prod_…`). When set, API requests address the product by uid instead of the enumerable numeric id, and licenses are stored under uid-based option keys; when unset, numeric `product_id` behavior is unchanged. On first call (or on V2 construction with a `product_uid`), existing id-based licenses are automatically cloned to uid-based keys; old copies are retained for backward compatibility until a future prune release (tracked as [issue #24](https://github.com/shazzad/plugin-updater/issues/24); it will ship in V2, never in the frozen V1 namespace).
 
 ```php
 $integration = new \Shazzad\PluginUpdater\Integration( $api_url, $basename, 6, true );
@@ -542,8 +560,8 @@ The updater integrates with WordPress using these hooks:
 
 ### Scheduled Tasks
 
-- **License Sync**: Hourly cron job to verify license status (V1/V2 also ping here; V3 does not)
-- **Insights (V3)**: Daily `wprepo_insights_track_{slug}` cron, re-created on `admin_init` if lost (commercial: also by the hourly license sync, which sends the daily track when it is due)
+- **License Sync**: Hourly cron job to verify license status (V1/V2 also ping here; V4 does not)
+- **Insights (V4)**: Daily `wprepo_insights_track_{slug}` cron, re-created on `admin_init` if lost (commercial: also by the hourly license sync, which sends the daily track when it is due)
 - **Update Checks**: Integrated with WordPress core update system
 
 ## Admin Interface

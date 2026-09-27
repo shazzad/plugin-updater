@@ -1,7 +1,14 @@
-# V3 Insights — implementation plan
+# V4 Insights — implementation plan
 
-Spec: `docs/superpowers/specs/2026-09-26-v3-insights-design.md`. Executed subagent-driven in the
+Spec: `docs/superpowers/specs/2026-09-26-v4-insights-design.md`. Executed subagent-driven in the
 overnight run of 2026-09-26 (hub run log `docs/overnight/RUN-2026-09-26-telemetry.md`).
+
+> **Note 2026-09-27:** this plan was executed with the namespace named `V3` and a 3.0.0 release
+> in mind. Before release the namespace was renamed `V4` (to match the `wp-repo/v4` API it
+> calls) and the release became 4.0.0; the names below follow. Branch names are left as they
+> were. The side namespace `wp-repo-insights/v1` in Task A was later replaced by `wp-repo/v4`,
+> which then moved to `plugins/{uid}` routes with `product_uid` required (see the spec's
+> revision notes).
 
 Branches: `shazzad-plugin-updater` `feature/v3-insights`, `shazzad-plugin-repo`
 `feature/insights-api` (from `origin/main`), `shazzad-plugin-updater-test` `feature/v3-insights`.
@@ -24,36 +31,36 @@ Branches: `shazzad-plugin-updater` `feature/v3-insights`, `shazzad-plugin-repo`
 
 ## Task B — client Insights core + free entry (`shazzad-plugin-updater`), parallel with A
 
-1. `src/V3/Insights/{Collector,Client,Scheduler,Consent,Notice}.php` + `src/V3/Insights.php`
+1. `src/V4/Insights/{Collector,Client,Scheduler,Consent,Notice}.php` + `src/V4/Insights.php`
    per spec; ABSPATH + `class_exists` guards like every file here; PHP 7.4 syntax.
-2. `tests/V3/` PHPUnit + Brain Monkey: collector shape + 200 cap, consent transitions, notice
+2. `tests/V4/` PHPUnit + Brain Monkey: collector shape + 200 cap, consent transitions, notice
    renders only when unset/capable/on-screen, Allow/No thanks handler (nonce, cap, ajax skip),
    no HTTP before consent, optout sends token, cron scheduled/cleared, and a static guard test
-   that `src/V3/Insights.php` + `src/V3/Insights/` never mention `Updater`, `License` or `LicensePage`.
-3. `composer.json` autoload unchanged (PSR-4 covers V3); `phpunit.xml.dist` includes tests/V3.
+   that `src/V4/Insights.php` + `src/V4/Insights/` never mention `Updater`, `License` or `LicensePage`.
+3. `composer.json` autoload unchanged (PSR-4 covers V4); `phpunit.xml.dist` includes tests/V4.
 
-## Task C — commercial `V3\Integration` (after B)
+## Task C — commercial `V4\Integration` (after B)
 
 1. Copy `src/V2/{Integration,Client,Updater,Tracker}.php`, `License/Store.php`, `Admin/*` to
-   `src/V3/` with namespace V3; Integration builds Insights parts with consent granted
+   `src/V4/` with namespace V4; Integration builds Insights parts with consent granted
    (`mode: commercial`), accepts `insights_api_url`; Tracker's hourly sync drops the `/ping`
    call, Insights Scheduler handles daily + activate/deactivate/upgrade with license in payload.
-2. Copy the V2 tests that apply to `tests/V3/` + tests for the commercial path.
-3. README "Which namespace" + V3 quick starts (free + commercial) + free-build strip recipe;
-   CHANGELOG 3.0.0 entry; version bump to 3.0.0 wherever the package states it.
+2. Copy the V2 tests that apply to `tests/V4/` + tests for the commercial path.
+3. README "Which namespace" + V4 quick starts (free + commercial) + free-build strip recipe;
+   CHANGELOG 4.0.0 entry; version bump to 4.0.0 wherever the package states it.
 4. Verify `git diff main -- src/*.php src/V2` is empty; `composer test` + `composer lint` green.
 
 ## Task D — end-to-end (after A + C)
 
 `shazzad-plugin-updater-test`: add `insights-free-test.php` (free, consent) and
-`insights-commercial-test.php` (V3\Integration) as extra top-level plugin files, pointed at the
+`insights-commercial-test.php` (V4\Integration) as extra top-level plugin files, pointed at the
 local stack's own `wp-repo-insights/v1`; create local product rows; run the flows with wp-cli
 (consent unset → no rows; opt_in → row + insights; daily; deactivate; opt_out → rows gone;
 commercial → row without consent, license bound). Record evidence in the run log.
 
 ## Task E — manual QA doc
 
-`docs/testing/v3-insights-manual-qa.md`: stack up, activate test plugins, click-through of the
+`docs/testing/v4-insights-manual-qa.md`: stack up, activate test plugins, click-through of the
 notice, where to look in the repo admin, curl checks, the V1/V2 untouched check, cleanup.
 
 ## Task F — review

@@ -1,14 +1,25 @@
-# V3 Insights — usage tracking with consent (design)
+# V4 Insights — usage tracking with consent (design)
 
 Date: 2026-09-26 · Status: agreed in session with Shazzad, built in the overnight run of the same date
 Repos: `shazzad/plugin-updater` (client, this repo) and `shazzad/plugin-repo` (server)
 
 > **Revised 2026-09-27 (Shazzad):** the Insights routes no longer live in a side namespace
-> `wp-repo-insights/v1`, and `V3\Integration` no longer derives an Insights URL from `api_url`
+> `wp-repo-insights/v1`, and `V4\Integration` no longer derives an Insights URL from `api_url`
 > or accepts `insights_api_url`. The server's `wp-repo/v4` is now a full copy of v3 plus
-> `track` / `optout`, and both V3 entry points use one `api_url` =
+> `track` / `optout`, and both V4 entry points use one `api_url` =
 > `https://w4dev.com/wp-json/wp-repo/v4`. v3 is untouched. Sections below are updated to match;
 > "Hard constraints" 1 still holds for `wp-repo/v3`.
+>
+> **Revised again 2026-09-27 (Shazzad):** the namespace was built as `V3` and renamed `V4`
+> before release, so the updater's namespace number matches the API it calls (`V4` ↔
+> `wp-repo/v4`; V1/V2 ↔ `wp-repo/v3` is the legacy exception); the library release is 4.0.0,
+> not 3.0.0. The server's v4 then moved to plugin routes (`shazzad/plugin-repo` 2.9.0, contract
+> in its `docs/v4-api.md`): every call is `{api_url}/plugins/{uid}/…`, only the `prod_…` uid is
+> accepted (a numeric id is `404 rest_no_route`), there is no `ping` on v4, and the track
+> payload says `plugin_version` / `plugin_status`. So `product_uid` is **required** by both
+> entry points — without it `_doing_it_wrong()` fires and nothing is sent — and `product_id` is
+> optional, never sent, kept only for V1 id-keyed license storage. Config keys and the
+> `product_*` properties keep their names. Sections below are updated to match.
 
 ## Why
 
@@ -23,16 +34,15 @@ repo server we already run, so that:
 ## Hard constraints
 
 1. **Total isolation.** V1 (`src/*.php`) and V2 (`src/V2/`) stay byte-identical. Existing
-   server routes (`wp-repo/v3/*`, `wp-repo/v4/products/{id}/ping`) and existing tables keep their
-   behaviour. Only code that instantiates the new `V3` classes sees anything new.
+   server routes (`wp-repo/v3/*`) and existing tables keep their behaviour. Only code that instantiates the new `V4` classes sees anything new.
 2. **Free plugins carry no update code.** wp.org guideline 8 forbids self-updating from a
-   non-wp.org source. `V3\Insights` must never load, instantiate or reference `Updater`,
+   non-wp.org source. `V4\Insights` must never load, instantiate or reference `Updater`,
    `License\*` or `Admin\LicensePage`, and free plugins strip every other file of this package
    from their zip at build time (Plugin Check skips `vendor/`, human review may not).
 3. **No data before consent** in free plugins — not even a "skipped" ping. "No thanks" sends nothing.
 4. No deactivation-feedback modal in this version.
 
-## Client — `src/V3/` (namespace `Shazzad\PluginUpdater\V3`)
+## Client — `src/V4/` (namespace `Shazzad\PluginUpdater\V4`)
 
 ### Files
 
@@ -46,17 +56,17 @@ repo server we already run, so that:
 | `Insights.php` | **Free entry point** — wires Collector, Client, Scheduler, Consent, Notice. Nothing else. | free |
 | `Integration.php`, `Client.php`, `Updater.php`, `Tracker.php`, `License/Store.php`, `Admin/*` | **Commercial entry point** — copy of V2 with the ping replaced by the Insights parts (consent granted) | commercial |
 
-Free plugins keep only `src/V3/Insights.php` + `src/V3/Insights/` in their zip.
+Free plugins keep only `src/V4/Insights.php` + `src/V4/Insights/` in their zip.
 
 ### Free usage
 
 ```php
-if ( class_exists( \Shazzad\PluginUpdater\V3\Insights::class ) ) {
-    new \Shazzad\PluginUpdater\V3\Insights( [
+if ( class_exists( \Shazzad\PluginUpdater\V4\Insights::class ) ) {
+    new \Shazzad\PluginUpdater\V4\Insights( [
         'api_url'       => 'https://w4dev.com/wp-json/wp-repo/v4', // required
         'file'          => __FILE__,                                          // required
-        'product_uid'   => 'prod_…',            // or product_id
-        'product_id'    => '12',
+        'product_uid'   => 'prod_…',            // required
+        'product_id'    => '12',                // optional, never sent
         'name'          => 'Adminkeep',         // shown in the notice; default = plugin header Name
         'privacy_url'   => 'https://…',         // "Learn more" link in the notice; omitted when empty
         'notice'        => [
@@ -75,11 +85,13 @@ Public API on the instance: `has_consent()`, `get_consent()` (`'yes'|'no'|''`), 
 
 ### Commercial usage
 
-`V3\Integration` takes the V2 config array unchanged, with `api_url` =
-`https://w4dev.com/wp-json/wp-repo/v4`, which serves updates, licensing and Insights.
+`V4\Integration` takes the V2 config array unchanged, with `api_url` =
+`https://w4dev.com/wp-json/wp-repo/v4`, which serves updates, licensing and Insights at
+`{api_url}/plugins/{uid}/…`. `product_uid` is required (without it: `_doing_it_wrong()`, no
+update, license or Insights call); `product_id` only reaches V1 id-keyed license storage.
 Updates, license check, license page, notices and update message behave exactly as V2. Storage
 keys, transients and the hourly `wprepo_sync_license_data_{license_name}` cron are the same as
-V2, so a plugin moving V2 → V3 keeps every saved license. Difference: the hourly sync no longer
+V2, so a plugin moving V2 → V4 keeps every saved license. Difference: the hourly sync no longer
 calls the old `/ping`; tracking goes through Insights (daily + activate/deactivate/upgrade), with
 the license key in the payload so the server can bind the install.
 
@@ -139,7 +151,7 @@ the cron, on every site of a network; plugins call it from `uninstall.php` /
 Commercial installs have a second trigger for the daily track: the hourly
 `wprepo_sync_license_data_{name}` event (scheduled by `Updater` on every `init`) self-heals the
 daily cron and calls `run_daily()` (its 20 h `MIN_INTERVAL` prevents doubles). Without it, a
-plugin updated in place V2 → V3 on a site where nobody opens wp-admin would never schedule the
+plugin updated in place V2 → V4 on a site where nobody opens wp-admin would never schedule the
 daily cron, never track, and be marked inactive by the server after 7 days.
 
 ### Payload (JSON body)
@@ -149,7 +161,7 @@ daily cron, never track, and be marked inactive by the server after 7 days.
   "event": "daily|activate|deactivate|optin|upgrade",
   "mode": "consent|commercial",
   "token": "…",
-  "product_version": "2.0.0", "product_status": "active|inactive",
+  "plugin_version": "2.0.0", "plugin_status": "active|inactive",
   "site":   { "url": "https://…", "name": "…", "locale": "en_US", "is_local": false, "multisite": false },
   "admin":  { "email": "…", "name": "…" },
   "wp":     { "version": "6.9", "memory_limit": "256M", "debug_mode": false,
@@ -172,13 +184,13 @@ run retries).
 
 ### Routes (on `wp-repo/v4`, public, `permission_callback` `__return_true`)
 
-- `POST /products/{key}/track` — `{key}` = numeric id or `prod_` uid. 404 unknown product, 403
-  when the product has install tracking off, 400 on missing `site.url` / `product_version` /
-  `token`. Writes the **same `installs` row** the old ping writes (matched by product +
+- `POST /plugins/{uid}/track` — `{uid}` = the `prod_` uid only (a numeric id is
+  `404 rest_no_route`). 404 `wprepo_insights_unknown_plugin` for an unknown uid, 403 when the
+  plugin has install tracking off, 400 on missing `site.url` / `plugin_version` / `token`. Writes the **same `installs` row** the old ping writes (matched by product +
   `wp_url_key` via `Install\Data::create_install()`), including `admin_email`/`admin_name`,
   env columns and — only when `license` is present — the license binding. `meta` goes to
   `installmeta` (as today). Everything else goes to the new `install_insights` row. Returns 202.
-- `POST /products/{key}/optout` — `{ site_url, token }`. Only when the stored token matches and
+- `POST /plugins/{uid}/optout` — `{ site_url, token }`. Only when the stored token matches and
   the row's mode is `consent`: if an Insights track created the install row (`owns_install`),
   deletes the install row, its meta, its insights row and its install events; otherwise (the row
   came from the old v3 ping) removes only the insights row. Commercial rows are never deleted
@@ -211,13 +223,13 @@ A wp.org plugin gets a normal product row with install tracking on and no versio
 
 ## Testing
 
-- Client: PHPUnit + Brain Monkey in `tests/V3/`; a guard test asserting `src/V3/Insights*`
+- Client: PHPUnit + Brain Monkey in `tests/V4/`; a guard test asserting `src/V4/Insights*`
   never references `Updater`, `License` or `LicensePage`; `git diff main -- src/*.php src/V2`
   empty.
 - Server: `wp eval-file` tests in `tests/insights-*-test.php` run in the w4dev stack.
-- End to end: a free test plugin and a commercial V3 test plugin in `shazzad-plugin-updater-test`
+- End to end: a free test plugin and a commercial V4 test plugin in `shazzad-plugin-updater-test`
   pointed at the local w4dev stack's own repo server.
-- Manual QA sheet for Shazzad: `docs/testing/v3-insights-manual-qa.md` (this repo).
+- Manual QA sheet for Shazzad: `docs/testing/v4-insights-manual-qa.md` (this repo).
 
 ## Out of scope
 

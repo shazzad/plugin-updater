@@ -22,7 +22,7 @@ composer phpcs
 composer fix
 ```
 
-Tests use PHPUnit 9 with Brain Monkey for WordPress function mocking. Fixture-based JSON files in `tests/fixtures/` represent API response shapes and are shared by the suites: legacy tests in `tests/`, V2 tests in `tests/V2/`, V3 tests in `tests/V3/` (`TestCase.php` = Insights base with the full collector environment stubbed; `IntegrationTestCase.php` = base for the tests carried over from V2). CI (`.github/workflows/tests.yml`) runs `composer test` on PHP 7.4, so every suite must stay green. Locally: `docker run --rm -v "$PWD":/app -w /app php:7.4-cli vendor/bin/phpunit`.
+Tests use PHPUnit 9 with Brain Monkey for WordPress function mocking. Fixture-based JSON files in `tests/fixtures/` represent API response shapes and are shared by the suites: legacy tests in `tests/`, V2 tests in `tests/V2/`, V4 tests in `tests/V4/` (`TestCase.php` = Insights base with the full collector environment stubbed; `IntegrationTestCase.php` = base for the tests carried over from V2). CI (`.github/workflows/tests.yml`) runs `composer test` on PHP 7.4, so every suite must stay green. Locally: `docker run --rm -v "$PWD":/app -w /app php:7.4-cli vendor/bin/phpunit`.
 
 ## Architecture
 
@@ -33,41 +33,54 @@ fatal when two plugins bundle different library versions:
 - **`src/` — `Shazzad\PluginUpdater` (V1) — FROZEN.** Critical/security fixes only. Still what
   most consumer plugins load.
 - **`src/V2/` — `Shazzad\PluginUpdater\V2` — stable, additive fixes only.** No new features.
-- **`src/V3/` — `Shazzad\PluginUpdater\V3` — active (3.0.0).** All new development. Within V3
-  changes are additive-only; any breaking change opens `src/V4/`.
+- **`src/V4/` — `Shazzad\PluginUpdater\V4` — active (4.0.0).** All new development. Within V4
+  changes are additive-only; any breaking change opens `src/V5/`.
 
-**Never edit V1 or V2 while working on V3** — `git diff main -- src/*.php src/V2` must stay
-empty on a V3 branch.
+**Never edit V1 or V2 while working on V4** — `git diff main -- src/*.php src/V2` must stay
+empty on a V4 branch.
+
+**The namespace number matches the server API version it calls:** `V4` ↔ `wp-repo/v4` (and a
+future `V5` ↔ `wp-repo/v5`). The legacy exception: V1 and `V2` both call `wp-repo/v3`, which
+is frozen on the server. There is no `V3` namespace and no 3.0.0 — it was renamed to `V4` before
+its first release.
 
 Adoption is opt-in per plugin: bump the Composer constraint and instantiate the newer
-namespace. Storage compatibility is sacred — V2 and V3 `Integration` use the same option keys,
-transients, and cron hook names as V1, so a plugin moving V1→V2→V3 keeps every customer's saved
+namespace. Storage compatibility is sacred — V2 and V4 `Integration` use the same option keys,
+transients, and cron hook names as V1, so a plugin moving V1→V2→V4 keeps every customer's saved
 license. The pending legacy-key prune (issue #24) is a post-V1 decision; never ship it in the
 frozen namespace. Designs: `docs/superpowers/specs/2026-08-19-versioned-namespace-v2-design.md`,
-`docs/superpowers/specs/2026-09-26-v3-insights-design.md`.
+`docs/superpowers/specs/2026-09-26-v4-insights-design.md`.
 
-### V3 (`src/V3/`)
+### V4 (`src/V4/`)
 
 Two entry points over one set of Insights parts:
 
-- **`V3\Insights` — free wordpress.org plugins.** Wires `Insights/{Consent,Collector,Client,
+- **`V4\Insights` — free wordpress.org plugins.** Wires `Insights/{Consent,Collector,Client,
   Scheduler,Notice}` and nothing else. Nothing is sent before an admin clicks Allow (or the
   plugin calls `opt_in()`). It must **never** reference `Updater`, `License*`, `Admin\*`,
-  `Integration`, `Tracker` or V1/V2 — `tests/V3/InsightsIsolationTest.php` enforces it, because
-  free plugins ship only `src/V3/Insights.php` + `src/V3/Insights/` (strip recipe in README).
-- **`V3\Integration` — commercial plugins.** A copy of the V2 entry point (same config, same
+  `Integration`, `Tracker` or V1/V2 — `tests/V4/InsightsIsolationTest.php` enforces it, because
+  free plugins ship only `src/V4/Insights.php` + `src/V4/Insights/` (strip recipe in README).
+- **`V4\Integration` — commercial plugins.** A copy of the V2 entry point (same config, same
   `$store`/`$client`/`$updater`/`$tracker`/`$admin`/`$notices`/`$update_message`) plus the
   Insights parts built in **commercial mode** (consent implied, never asked, `Notice` never
   loaded) as `$insights_consent`, `$insights_collector`, `$insights_client`,
   `$insights_scheduler`. No extra config keys: `api_url` is the plugin-repo `wp-repo/v4` base
-  and serves updates, licensing and Insights alike. An `api_url` on `wp-repo/v3` (no Insights
+  and serves updates, licensing and Insights alike, every call at `{api_url}/plugins/{uid}/…`.
+  **`product_uid` is required** in both entry points (v4 answers a numeric id with
+  `404 rest_no_route`): without it `_doing_it_wrong()` fires, `get_api_product_key()` /
+  `Insights::get_product_key()` return `''` (never the id), `Client` / `Insights\Client` refuse
+  to send (`wprepo_no_product_uid` / `wprepo_insights_no_product_uid`), `Integration` builds no
+  Insights parts (a later `setProductUid()` does) and `Insights` draws no notice. `product_id`
+  is optional, never sent, and only reaches V1 id-keyed license storage. Config keys and the
+  `product_*` properties keep their names; only the wire changed (`plugins/` path, track keys
+  `plugin_version` / `plugin_status`). An `api_url` on `wp-repo/v3` (no Insights
   routes there) → `_doing_it_wrong()` and the four properties stay `null`; updates and
   licensing still work. `Client::ping()` is gone: the hourly
   `wprepo_sync_license_data_{license_name}` sync checks the license and backs up the daily track, `Tracker`
   activate/deactivate and `Updater` post-upgrade only refresh caches, and the Insights
   `Scheduler` sends the `activate`/`deactivate`/`upgrade`/daily tracks (license key included
   via `get_insights_license()` when licensing is on). `meta`/`meta_callback`/`setMeta()`/
-  `setMetaCallback()` feed the collector. `tests/V3/CommercialIsolationTest.php` keeps the
+  `setMetaCallback()` feed the collector. `tests/V4/CommercialIsolationTest.php` keeps the
   commercial files off `Insights\Notice`, the free entry point, `ping` and V1/V2.
 
 Insights storage per plugin (`{slug}` = plugin directory): options `{slug}_insights_consent`,
@@ -77,7 +90,7 @@ opt-out, retried up to 7 days); daily cron `wprepo_insights_track_{slug}`, re-cr
 (which also sends the daily track when due). `Insights::uninstall( $file )` removes all of it,
 network-wide. The notice's "What we collect" list (`Notice::get_collected_items()`) must stay in
 step with `Collector::collect()`. Server side: `wp-repo/v4`
-`track` + `optout` in `shazzad/plugin-repo` 2.8.0+.
+`track` + `optout` in `shazzad/plugin-repo` 2.9.0+ (contract: that repo's `docs/v4-api.md`).
 
 ### V2 (`src/V2/`, stable)
 
@@ -117,7 +130,7 @@ Holds all shared state plus the license/transient helpers itself; subsystem prop
 `$client`, `$updater`, `$tracker`, and `$admin` (`Admin.php`, only when `license_enabled` and
 `display_menu` are both true). No notices or update-row message.
 
-### Shared by V1, V2 and commercial V3
+### Shared by V1, V2 and commercial V4
 
 - `Updater` hooks `pre_set_site_transient_update_plugins`, `plugins_api`,
   `upgrader_package_options`, `upgrader_process_complete`, and `load-update-core.php` (clears
@@ -133,4 +146,4 @@ Holds all shared state plus the license/transient helpers itself; subsystem prop
 - Every file, in every version, keeps the WordPress `ABSPATH` guard and a `class_exists()` guard
   against its own namespace
 - Namespace `Shazzad\PluginUpdater` with PSR-4 autoloading from `src/`; the `V2` sub-namespace
-  (and `V3`) resolves through the same mapping — no autoload change needed for new versions
+  (and `V4`) resolves through the same mapping — no autoload change needed for new versions

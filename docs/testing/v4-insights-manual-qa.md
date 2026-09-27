@@ -1,20 +1,26 @@
-# V3 Insights — how to test
+# V4 Insights — how to test
 
-What's being tested: usage tracking in plugin-updater **V3**, built on 2026-09-26.
-- **Free plugins** (`V3\Insights`) show an Appsero-style notice and send nothing until an admin
+What's being tested: usage tracking in plugin-updater **V4** (built on 2026-09-26 as `V3`,
+renamed `V4` before release; ships as 4.0.0).
+- **Free plugins** (`V4\Insights`) show an Appsero-style notice and send nothing until an admin
   clicks **Allow**. After that they send site, admin name + email, environment, plugin list and
   the plugin's own counters once a day.
-- **Commercial plugins** (`V3\Integration`) do the same without asking, on top of V2's updates
+- **Commercial plugins** (`V4\Integration`) do the same without asking, on top of V2's updates
   and licensing.
-- The server side is plugin-repo's `wp-repo/v4` API (all of v3 plus `track` / `optout`).
+- The server side is plugin-repo's `wp-repo/v4` API: every call goes to
+  `/wp-json/wp-repo/v4/plugins/{uid}/…` (`updates`, `details`, `check_license`, `track`,
+  `optout`, …). Only the `prod_…` uid is accepted, so both entry points require `product_uid`;
+  the track payload says `plugin_version` / `plugin_status`. Contract: plugin-repo
+  `docs/v4-api.md`.
 
-Three draft PRs make up the work:
+Where the work lives (the first round, shazzad/plugin-updater#29 as `V3`, was merged and
+reverted by #30 until the v4 API was final):
 
-| Repo | PR | Branch |
+| Repo | PR / state | Branch |
 |---|---|---|
-| plugin-updater | shazzad/plugin-updater#29 | `feature/v3-insights` |
-| plugin-repo | shazzad/plugin-repo PR for 2.8.0 | `feature/v4-api` |
-| plugin-updater-test | shazzad/plugin-updater-test#1 | `feature/v3-insights` |
+| plugin-updater | not opened yet | `feature/v4-client` |
+| plugin-repo | shazzad/plugin-repo#80, merged (2.9.0) | `main` |
+| plugin-updater-test | not opened yet | `feature/v4-namespace` |
 
 Everything runs on the local w4dev stack (https://w4dev.shazzad.me). Nothing touches w4dev.com.
 Expect **15 minutes** for Part 1, about **15 more** for Part 2 in the browser, and a few minutes
@@ -26,9 +32,9 @@ for Part 3's isolation checks.
 
 ```bash
 cd ~/personal-assistant/w4dev-project
-git -C shazzad-plugin-updater      switch feature/v3-insights
-git -C shazzad-plugin-repo         switch feature/v4-api
-git -C shazzad-plugin-updater-test switch feature/v3-insights
+git -C shazzad-plugin-updater      switch feature/v4-client
+git -C shazzad-plugin-repo         switch main
+git -C shazzad-plugin-updater-test switch feature/v4-namespace
 docker compose up -d
 
 # shortcut used below
@@ -39,19 +45,19 @@ wpc eval 'Shazzad\PluginRepo\Plugin::get_instance()->maybe_upgrade_db();'   # cr
 ## 1. Automated checks (≈5 min)
 
 ```bash
-# client library: every suite, V1 + V2 + V3
+# client library: every suite, V1 + V2 + V4
 (cd shazzad-plugin-updater && composer test)
-# expect: OK, 443 tests (9 "risky" = assertion-less migration tests, pre-existing pattern)
+# expect: OK, 456 tests (9 "risky" = assertion-less migration tests, pre-existing pattern)
 
-# server: new suites + one old one as a regression spot-check
-for t in insights-track insights-optout install-dedupe; do
+# server: the v4 routes, the Insights suites, and one old suite as a regression spot-check
+for t in v4-public-api insights-track insights-optout install-dedupe; do
   wpc eval-file wp-content/plugins/shazzad-plugin-repo/tests/$t-test.php | tail -1
 done
-# expect: "110 passed, 0 failed", "57 passed, 0 failed", "34 passed, 0 failed"
+# expect: "… passed, 0 failed" for each
 
 # end to end: real HTTP from two fixture plugins to the local server
 shazzad-plugin-updater-test/bin/insights-e2e | tail -1
-# expect: "48 passed, 0 failed"
+# expect: "… passed, 0 failed"
 ```
 
 `bin/insights-e2e` also leaves two fixture plugins installed (inactive) and two local products
@@ -101,7 +107,7 @@ Log in at https://w4dev.shazzad.me/wp-admin.
          went through, so no retry is pending).
 8. Uninstall cleanup (the fixture has no uninstall routine, so call it directly):
    ```bash
-   wpc eval '\Shazzad\PluginUpdater\V3\Insights::uninstall( "spu-insights-free/spu-insights-free.php" );'
+   wpc eval '\Shazzad\PluginUpdater\V4\Insights::uninstall( "spu-insights-free/spu-insights-free.php" );'
    wpc option list --search='spu-insights-free_insights_*' --format=count
    wpc cron event list --hook=wprepo_insights_track_spu-insights-free --format=count
    ```
@@ -148,9 +154,17 @@ git diff main -- src/Admin.php src/Client.php src/Integration.php src/Tracker.ph
 # expect: 0 (V1 and V2 byte-identical)
 
 cd ../shazzad-plugin-repo
-git diff origin/main --stat -- includes/RestController/V3 includes/RestController/V4
-# expect: nothing (existing routes untouched)
+git diff origin/main --stat -- includes/RestController/V3
+# expect: nothing (the frozen v3 routes untouched)
+
+# v4 takes the uid only: a numeric id is not a route
+curl -s https://w4dev.shazzad.me/wp-json/wp-repo/v4/plugins/12/updates
+# expect: {"code":"rest_no_route",…}
 ```
+
+A V4 config without `product_uid` must send nothing: with `WP_DEBUG` on it logs a
+`_doing_it_wrong` notice ("Missing required config key \"product_uid\"") and no install row
+appears.
 
 Optional: the free-plugin zip strip recipe is in plugin-updater's README ("Shipping a free
 wp.org plugin"). Use it when Adminkeep adopts Insights, then run Plugin Check on that zip.
@@ -165,16 +179,19 @@ git -C shazzad-plugin-repo switch fix/versioned-download-url   # back to your #7
 
 ## Before shipping (not part of testing)
 
-- **Deploy plugin-repo 2.8.0 before any plugin ships on V3.** V3 plugins call `wp-repo/v4`,
-  which on the server before 2.8.0 has only a stale `ping` route: tracks, **update checks and
-  license checks** would all 404 until it is deployed. (2.7.0 was never deployed and is
-  superseded by 2.8.0.)
+- **Deploy plugin-repo 2.9.0 before any plugin ships on V4.** V4 plugins call
+  `wp-repo/v4/plugins/{uid}/…`, which exists only from 2.9.0 (2.8.0's v4 used
+  `products/{key}` routes): on an older server tracks, **update checks and license checks**
+  would all 404 until it is deployed.
 - On deploy, the first request runs `Installer::upgrade()` once, because of the new
   `wprepo_db_version` schema check. That is the same as any version bump, and it creates
   `wprepo_install_insights`.
 - The free products on the repo server (Adminkeep later) need a product row with **Track
   install** on and no versions uploaded.
-- plugin-updater releases as **3.0.0** (CHANGELOG entry is ready, marked unreleased).
+- plugin-updater releases as **4.0.0** (CHANGELOG entry is ready, marked unreleased). There is
+  no 3.0.0.
+- Every plugin moving to V4 needs its `product_uid` in the config; a V2 config carrying only
+  `product_id` sends nothing on V4.
 - Separate from this feature, shazzad/plugin-repo#78 tightens how the **existing** v3 API looks
   up license codes and install URLs (found during this review). It is independent of the v4
   work; merge it first so 2.8.0 carries it (the fix is then in both v3 and v4).

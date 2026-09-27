@@ -1,34 +1,46 @@
 # Changelog
 
-## 3.0.0 - Unreleased
+## 4.0.0 - Unreleased
 
-New `Shazzad\PluginUpdater\V3` namespace under `src/V3/`: consent-based usage tracking
+New `Shazzad\PluginUpdater\V4` namespace under `src/V4/`: consent-based usage tracking
 ("Insights") for free plugins, and a commercial entry point that tracks through the same
 Insights parts. V1 (`src/`) and V2 (`src/V2/`) are byte-identical to 2.1.1 — plugins on them see
-no change; V2 is now stable (additive fixes only) and V3 takes new development.
+no change; V2 is now stable (additive fixes only) and V4 takes new development.
 
-- New: `V3\Insights` — free wordpress.org plugin entry point. Appsero-style consent notice
+There is no 3.0.0. The namespace was built as `V3` and renamed `V4` before release so that its
+number matches the server API it calls (`V4` ↔ `wp-repo/v4`); V1 and V2 stay on `wp-repo/v3`.
+
+- New: `V4\Insights` — free wordpress.org plugin entry point. Appsero-style consent notice
   (Allow / No thanks, nonce'd, `manage_options`), nothing sent before consent, then a daily
   `wprepo_insights_track_{slug}` track plus `activate` / `deactivate` / `upgrade` / `optin`
-  events to `{api_url}/products/{key}/track` on `wp-repo/v4`; `opt_out()` asks the server to delete
+  events to `{api_url}/plugins/{uid}/track` on `wp-repo/v4`; `opt_out()` asks the server to delete
   the site's data. Loads no update or license code; free plugins ship only
-  `src/V3/Insights.php` + `src/V3/Insights/` (README has the build strip recipe)
-- New: `V3\Insights\{Consent,Collector,Client,Scheduler,Notice}` — consent state + install
+  `src/V4/Insights.php` + `src/V4/Insights/` (README has the build strip recipe)
+- New: `V4\Insights\{Consent,Collector,Client,Scheduler,Notice}` — consent state + install
   token; payload builder (site, admin, WordPress + theme, server, users by role, plugins with
   the active list capped at 200, meta, license); the HTTP client, which refuses to send without
   consent; the scheduler; the notice
-- New: `V3\Integration` — commercial entry point. Same config, storage keys, transients, cron
-  hook, license page, notices and update-row message as V2 (moving V2 → V3 keeps every saved
+- New: both entry points require `product_uid` — `wp-repo/v4` addresses a plugin as
+  `{api_url}/plugins/{uid}/…` and answers a numeric id with `404 rest_no_route`. Without a uid
+  `_doing_it_wrong()` fires and nothing is called: no update check, license check or track
+  (`V4\Insights` also draws no consent notice). `product_id` stays optional, is never sent, and
+  only reaches the id-keyed license options of plugins that shipped on V1.
+- New: `V4\Integration` — commercial entry point. Same config, storage keys, transients, cron
+  hook, license page, notices and update-row message as V2 (moving V2 → V4 keeps every saved
   license). `api_url` moves from `wp-repo/v3` to `wp-repo/v4`, which serves updates, licensing
   and Insights from one base (an `api_url` still on v3 fires `_doing_it_wrong()` and leaves tracking off). Tracking runs through the Insights parts in commercial mode — no consent step,
   no notice, license key included — exposed as `$insights_consent`, `$insights_collector`,
   `$insights_client`, `$insights_scheduler`
-- Changed (V3 vs V2): `Client::ping()` removed. The hourly `wprepo_sync_license_data_{name}`
+- Changed (V4 vs V2): API URLs are `{api_url}/plugins/{uid}/{updates,details,check_license}`
+  (V2: `{api_url}/products/{uid-or-id}/…` on `wp-repo/v3`); `get_api_product_key()` returns
+  the uid only, never the numeric id. The track payload carries `plugin_version` /
+  `plugin_status`; config keys and the `product_*` properties keep their names.
+- Changed (V4 vs V2): `Client::ping()` removed. The hourly `wprepo_sync_license_data_{name}`
   sync only checks the license; activation, deactivation and upgrade refresh caches and leave
   the (single) track to the Insights scheduler. `admin_email` / `admin_name` left
   `Integration` (the collector reads them at send time); `meta` / `meta_callback` /
   `setMeta()` / `setMetaCallback()` now feed the Insights payload
-- Fixed (review): commercial plugins updated in place V2 → V3 on sites where nobody opens
+- Fixed (review): commercial plugins updated in place V2 → V4 on sites where nobody opens
   wp-admin never scheduled the daily Insights cron, so they never tracked and went inactive on
   the server after 7 days. The hourly license sync now self-heals the daily cron and sends the
   daily track when due (the 20 h minimum interval prevents doubles)
@@ -44,11 +56,11 @@ no change; V2 is now stable (additive fixes only) and V3 takes new development.
   and by the daily cron until it succeeds, a new opt-in supersedes it, or 7 days pass
 - New (review): `Insights::uninstall( $file )` deletes every Insights option and the cron, on
   every site of a multisite network; network deactivation now clears the cron on every site
-- Docs (review): README's V2 → V3 migration note lists the dropped `$admin_email` / `$admin_name`
+- Docs (review): README's V2 → V4 migration note lists the dropped `$admin_email` / `$admin_name`
   properties and `Client::ping()`, and that assigning `$integration->meta` / `->meta_callback`
   after construction does not reach the payload (use `setMeta()` / `setMetaCallback()`)
-- Requires `shazzad/plugin-repo` 2.8.0+ on the server (the `wp-repo/v4` API with `track` +
-  `optout`)
+- Requires `shazzad/plugin-repo` 2.9.0+ on the server (the `wp-repo/v4` `plugins/{uid}` API
+  with `track` + `optout`)
 
 ## 2.1.1 - 2026-09-15
 
