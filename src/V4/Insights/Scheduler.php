@@ -267,8 +267,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 
 		/**
 		 * Whether an optout result is a failure worth retrying: any WP_Error
-		 * except a missing token or a missing product uid, which no retry can
-		 * fix.
+		 * except a missing token or a configuration no request can succeed
+		 * with (no uid, no or v3 api_url), which no retry can fix.
 		 *
 		 * @since 4.0.0
 		 *
@@ -277,7 +277,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 		 */
 		public static function optout_should_retry( $result ) {
 			return is_wp_error( $result )
-				&& ! \in_array( $result->get_error_code(), [ 'wprepo_insights_no_token', 'wprepo_insights_no_product_uid' ], true );
+				&& 'wprepo_insights_no_token' !== $result->get_error_code()
+				&& ! \in_array( $result->get_error_code(), Client::CONFIG_ERROR_CODES, true );
 		}
 
 		/**

@@ -154,17 +154,16 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		 * @return array|WP_Error Response data or WP_Error on failure.
 		 */
 		private function request( $method, $args = [], $timeout = 5 ) {
-			$uid = (string) $this->integration->get_api_product_key();
+			// wp-repo/v4 addresses a plugin by its `prod_…` uid only, and
+			// wp-repo/v3 has no plugins/{uid} routes; any such URL is a 404,
+			// so don't send one. Never an `invalid_license` verdict.
+			$config_error = $this->integration->get_api_error();
 
-			// wp-repo/v4 addresses a plugin by its `prod_…` uid only; any
-			// other URL is a 404, so don't send one.
-			if ( '' === $uid ) {
-				return new WP_Error(
-					'wprepo_no_product_uid',
-					'No product_uid configured; nothing sent.'
-				);
+			if ( $config_error ) {
+				return $config_error;
 			}
 
+			$uid         = $this->integration->get_api_product_key();
 			$request_url = "{$this->integration->api_url}/plugins/{$uid}/$method";
 
 			if ( ! empty( $args ) ) {

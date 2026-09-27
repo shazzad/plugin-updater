@@ -135,7 +135,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 		public $scheduler;
 
 		/**
-		 * Consent notice; null when `notice` is false or no `product_uid` is set.
+		 * Consent notice; null when `notice` is false or nothing could be sent
+		 * (no valid `product_uid`, no or a `wp-repo/v3` `api_url`).
 		 *
 		 * @since 4.0.0
 		 *
@@ -203,8 +204,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 
 			$notice = \array_key_exists( 'notice', $config ) ? $config['notice'] : [];
 
-			// No uid, nothing can be sent: asking for consent would be a lie.
-			if ( false !== $notice && '' !== $this->product_uid ) {
+			// Nothing can be sent (no valid uid, no or a v3 api_url): asking
+			// for consent would be a lie.
+			if ( false !== $notice && null === $this->client->get_config_error() ) {
 				$this->notice = new Notice( $this, \is_array( $notice ) ? $notice : [] );
 			}
 		}
@@ -241,6 +243,14 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 					. ' "prod_…" uid only, so nothing is sent and no consent notice is shown without it.',
 					'4.0.0'
 				);
+			} elseif ( ! Client::is_valid_uid( $config['product_uid'] ) ) {
+				_doing_it_wrong(
+					__METHOD__,
+					'Config "product_uid" is not a valid uid (expected "prod_" followed by lowercase letters'
+					. ' and digits, as shown on the product screen). Nothing is sent and no consent notice is'
+					. ' shown with it.',
+					'4.0.0'
+				);
 			}
 
 			if ( isset( $config['meta_callback'] ) && ! \is_callable( $config['meta_callback'] ) ) {
@@ -255,8 +265,13 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 				_doing_it_wrong( __METHOD__, 'Config key "notice" must be an array or false; using the defaults.', '4.0.0' );
 			}
 
-			if ( isset( $config['api_url'] ) && \is_string( $config['api_url'] ) && \preg_match( '#/wp-repo/v3/?$#', $config['api_url'] ) ) {
-				_doing_it_wrong( __METHOD__, 'Config "api_url" points at wp-repo/v3, which has no Insights routes; use wp-repo/v4.', '4.0.0' );
+			if ( isset( $config['api_url'] ) && \is_string( $config['api_url'] ) && Client::is_v3_api_url( \rtrim( $config['api_url'], '/' ) ) ) {
+				_doing_it_wrong(
+					__METHOD__,
+					'Config "api_url" points at wp-repo/v3, which has no Insights routes; use wp-repo/v4.'
+					. ' Nothing is sent and no consent notice is shown until then.',
+					'4.0.0'
+				);
 			}
 
 			if ( \is_array( $config['notice'] ?? null ) ) {
@@ -337,11 +352,21 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 		 * Grants consent: stores `yes`, creates the token, schedules the
 		 * daily track and sends an immediate `optin` track.
 		 *
+		 * When nothing could ever be sent (no valid `product_uid`, no or a
+		 * `wp-repo/v3` `api_url`) it stores nothing and returns that error.
+		 *
 		 * @since 4.0.0
 		 *
 		 * @return array|\WP_Error Result of the `optin` track.
 		 */
 		public function opt_in() {
+			// Nothing could ever be sent: store no consent, token or cron.
+			$config_error = $this->client->get_config_error();
+
+			if ( $config_error ) {
+				return $config_error;
+			}
+
 			// A new opt-in supersedes an earlier deletion request that never
 			// reached the server.
 			$this->consent->clear_optout_pending();

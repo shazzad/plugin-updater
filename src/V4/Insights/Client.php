@@ -41,6 +41,34 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		const TIMEOUT = 5;
 
 		/**
+		 * Shape of a plugin uid the `wp-repo/v4` routes accept: the server's
+		 * route pattern `prod_[a-z0-9]+`. Anything else is `404 rest_no_route`
+		 * (an upper-cased uid reaches the handler but never matches a plugin).
+		 * The server generates `prod_` + 20 base36 characters; the length is
+		 * not enforced here so a future uid length keeps working. `\z`, not
+		 * `$`: a trailing newline must not pass.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @var string
+		 */
+		const UID_PATTERN = '/^prod_[a-z0-9]+\z/';
+
+		/**
+		 * Error codes for a configuration no request can succeed with. No
+		 * HTTP call is made for them and retrying cannot fix them.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @var string[]
+		 */
+		const CONFIG_ERROR_CODES = [
+			'wprepo_insights_no_api_url',
+			'wprepo_insights_v3_api_url',
+			'wprepo_insights_no_product_uid',
+		];
+
+		/**
 		 * Repo API base, e.g. `https://w4dev.com/wp-json/wp-repo/v4`.
 		 *
 		 * @since 4.0.0
@@ -92,6 +120,56 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 			$this->product_key = (string) $product_key;
 			$this->collector   = $collector;
 			$this->consent     = $consent;
+		}
+
+		/**
+		 * Whether $uid has the shape `wp-repo/v4` routes accept.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @param mixed $uid Candidate uid.
+		 * @return bool
+		 */
+		public static function is_valid_uid( $uid ) {
+			return \is_string( $uid ) && (bool) \preg_match( self::UID_PATTERN, $uid );
+		}
+
+		/**
+		 * Whether $api_url is the `wp-repo/v3` base (as copied from a V2
+		 * config). v3 has no `plugins/{uid}` routes.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @param mixed $api_url API base URL.
+		 * @return bool
+		 */
+		public static function is_v3_api_url( $api_url ) {
+			return \is_string( $api_url ) && (bool) \preg_match( '#/wp-repo/v3/?$#', $api_url );
+		}
+
+		/**
+		 * Why no request can be sent with this configuration, or null when
+		 * one can: an empty `api_url`, a `wp-repo/v3` `api_url`, or a missing
+		 * or malformed uid.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @return WP_Error|null
+		 */
+		public function get_config_error() {
+			if ( '' === $this->api_url ) {
+				return new WP_Error( 'wprepo_insights_no_api_url', 'No api_url configured; nothing sent.' );
+			}
+
+			if ( self::is_v3_api_url( $this->api_url ) ) {
+				return new WP_Error( 'wprepo_insights_v3_api_url', 'api_url points at wp-repo/v3, which has no Insights routes; nothing sent.' );
+			}
+
+			if ( ! self::is_valid_uid( $this->product_key ) ) {
+				return new WP_Error( 'wprepo_insights_no_product_uid', 'No valid product_uid configured; nothing sent.' );
+			}
+
+			return null;
 		}
 
 		/**
@@ -163,9 +241,11 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		 * @return array|WP_Error
 		 */
 		protected function post( $route, array $body ) {
-			// Without a uid the route would be a 404 (`rest_no_route`).
-			if ( '' === $this->product_key ) {
-				return new WP_Error( 'wprepo_insights_no_product_uid', 'No product_uid configured; nothing sent.' );
+			// Without a usable uid and v4 base the route would be a 404.
+			$config_error = $this->get_config_error();
+
+			if ( $config_error ) {
+				return $config_error;
 			}
 
 			$response = wp_remote_post(

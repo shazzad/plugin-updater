@@ -275,9 +275,11 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 *
 		 * Unrecognized config keys and missing required keys (`api_url`, `file`, `product_uid`)
 		 * trigger a `_doing_it_wrong()` notice in debug mode; construction always proceeds — a
-		 * misconfigured updater must never fatal the plugin embedding it. Without a
-		 * `product_uid` no API call is made and Insights stays off. An `api_url` on
-		 * `wp-repo/v3`, which has no Insights routes, draws a notice too.
+		 * misconfigured updater must never fatal the plugin embedding it. Without a valid
+		 * `product_uid` (`prod_…`) no API call is made and Insights stays off. An `api_url` on
+		 * `wp-repo/v3` draws a notice too, and nothing works against it (no update, license
+		 * or Insights call): v3 has no `plugins/{uid}` routes. A trailing slash on `api_url`
+		 * is trimmed.
 		 *
 		 * @since 4.0.0
 		 */
@@ -285,6 +287,12 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 			$this->validate_config( $config );
 
 			$this->api_url         = isset( $config['api_url'] ) ? $config['api_url'] : '';
+
+			// One trim here, so `…/v4/` never produces `v4//plugins/…`.
+			if ( \is_string( $this->api_url ) ) {
+				$this->api_url = \rtrim( $this->api_url, '/' );
+			}
+
 			$this->product_file    = isset( $config['file'] ) ? $config['file'] : '';
 			$this->product_id      = isset( $config['product_id'] ) ? $config['product_id'] : '';
 			$this->product_uid     = isset( $config['product_uid'] ) ? $config['product_uid'] : '';
@@ -392,6 +400,14 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 					. ' "product_id" alone is not enough.',
 					'4.0.0'
 				);
+			} elseif ( ! InsightsClient::is_valid_uid( $config['product_uid'] ) ) {
+				_doing_it_wrong(
+					__METHOD__,
+					'Config "product_uid" is not a valid uid (expected "prod_" followed by lowercase letters'
+					. ' and digits, as shown on the product screen). No update, license or Insights call is'
+					. ' made with it.',
+					'4.0.0'
+				);
 			}
 
 			if ( ! empty( $config['license'] ) && ! empty( $config['product_uid'] ) && empty( $config['product_id'] ) ) {
@@ -413,43 +429,57 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 				);
 			}
 
-			if ( isset( $config['api_url'] ) && \is_string( $config['api_url'] ) && self::is_v3_api_url( $config['api_url'] ) ) {
+			if ( isset( $config['api_url'] ) && \is_string( $config['api_url'] ) && InsightsClient::is_v3_api_url( \rtrim( $config['api_url'], '/' ) ) ) {
 				_doing_it_wrong(
 					__METHOD__,
-					'Config "api_url" points at wp-repo/v3, which has no Insights routes, so Insights'
-					. ' tracking is off. V4 of this library needs the wp-repo/v4 API'
-					. ' (e.g. https://w4dev.com/wp-json/wp-repo/v4).',
+					'Config "api_url" points at wp-repo/v3. V4 of this library needs the wp-repo/v4 API'
+					. ' (e.g. https://w4dev.com/wp-json/wp-repo/v4): v3 has no plugins/{uid} routes, so'
+					. ' nothing works against it — no update check, no license check, no Insights.',
 					'4.0.0'
 				);
 			}
 		}
 
 		/**
-		 * Whether the Insights parts can be built: a uid to address the
-		 * plugin, and an `api_url` that is not wp-repo/v3 (which has no
-		 * Insights routes; tracking against it would only 404).
+		 * Why no API call can be made with this configuration, or null when
+		 * one can. Every update, license and Insights request needs a
+		 * non-empty `wp-repo/v4` `api_url` and a valid `prod_…` uid; v3 has no
+		 * `plugins/{uid}` routes and v4 has no numeric-id routes, so those
+		 * calls could only 404.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @return \WP_Error|null
+		 */
+		public function get_api_error() {
+			if ( ! \is_string( $this->api_url ) || '' === $this->api_url ) {
+				return new \WP_Error( 'wprepo_no_api_url', 'No api_url configured; nothing sent.' );
+			}
+
+			if ( InsightsClient::is_v3_api_url( $this->api_url ) ) {
+				return new \WP_Error(
+					'wprepo_v3_api_url',
+					'api_url points at wp-repo/v3, which has no plugins/{uid} routes; nothing sent. Use wp-repo/v4.'
+				);
+			}
+
+			if ( ! InsightsClient::is_valid_uid( $this->product_uid ) ) {
+				return new \WP_Error( 'wprepo_no_product_uid', 'No valid product_uid configured; nothing sent.' );
+			}
+
+			return null;
+		}
+
+		/**
+		 * Whether the Insights parts can be built: the same rule as any API
+		 * call (see get_api_error()).
 		 *
 		 * @since 4.0.0
 		 *
 		 * @return bool
 		 */
 		private function can_track() {
-			return '' !== (string) $this->product_uid
-				&& \is_string( $this->api_url )
-				&& '' !== $this->api_url
-				&& ! self::is_v3_api_url( $this->api_url );
-		}
-
-		/**
-		 * Whether $api_url is the wp-repo/v3 base (as copied from a V2 config).
-		 *
-		 * @since 4.0.0
-		 *
-		 * @param string $api_url API base URL.
-		 * @return bool
-		 */
-		private static function is_v3_api_url( $api_url ) {
-			return (bool) \preg_match( '#/wp-repo/v3/?$#', $api_url );
+			return null === $this->get_api_error();
 		}
 
 		/**
@@ -611,10 +641,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 *
 		 * @since 4.0.0
 		 *
-		 * @return string The product uid, or '' when none is configured.
+		 * @return string The product uid, or '' when none (or a malformed one) is configured.
 		 */
 		public function get_api_product_key() {
-			return (string) $this->product_uid;
+			return InsightsClient::is_valid_uid( $this->product_uid ) ? $this->product_uid : '';
 		}
 
 		/**

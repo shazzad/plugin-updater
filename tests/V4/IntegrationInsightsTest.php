@@ -403,7 +403,7 @@ class IntegrationInsightsTest extends TestCase {
 	}
 
 	/** @test */
-	public function hourly_sync_with_insights_off_still_checks_the_license() {
+	public function hourly_sync_without_an_api_url_sends_nothing() {
 		$this->options['prod_abc_code'] = 'LIC-12';
 
 		$integration = $this->create_integration( [ 'api_url' => '' ] );
@@ -412,9 +412,10 @@ class IntegrationInsightsTest extends TestCase {
 
 		$this->fire( 'wprepo_sync_license_data_my-plugin12' );
 
-		$this->assertCount( 1, $this->requests );
+		$this->assertSame( [], $this->requests );
 		$this->assertSame( [], $this->http );
 		$this->assertSame( [], $this->cron );
+		$this->assertArrayNotHasKey( 'prod_abc_data', $this->options, 'Not an invalid_license verdict.' );
 	}
 
 	/** @test */
