@@ -501,7 +501,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 				[
 					'meta'             => $this->meta,
 					'meta_callback'    => $this->meta_callback,
-					'license_callback' => [ $this, 'get_insights_license' ],
+					'license_callback'      => [ $this, 'get_insights_license' ],
+					'license_sent_callback' => [ $this, 'insights_license_sent' ],
 				]
 			);
 			$this->insights_client    = new InsightsClient(
@@ -525,8 +526,13 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 * - Licensing off: null — no `license` key in the payload, so the
 		 *   server leaves the install's binding alone.
 		 * - Licensing on, a code stored: the code (the server binds it).
-		 * - Licensing on, no code stored: '' — the server unbinds the install
-		 *   and the license seat is released (v4 track license rule).
+		 * - Licensing on, the stored code was explicitly removed (license
+		 *   page saved empty): '' — the server unbinds the install, and its
+		 *   next install/activation recount frees the seat. Sent until one
+		 *   such track succeeds (see insights_license_sent()).
+		 * - Licensing on, no code and no removal: null, as when licensing is
+		 *   off. A key the site cannot read (a missed legacy migration, a
+		 *   failed option read) must never unbind a paying install.
 		 *
 		 * @since 4.0.0
 		 *
@@ -539,7 +545,27 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 
 			$license = $this->get_license_code();
 
-			return \is_string( $license ) ? $license : '';
+			if ( \is_string( $license ) && '' !== $license ) {
+				return $license;
+			}
+
+			return $this->store->is_license_removed() ? '' : null;
+		}
+
+		/**
+		 * Called after a track carrying `license` got a 2xx: once the server
+		 * has received `license: ""`, the removal is delivered and the flag
+		 * is cleared, so later tracks omit `license` again.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @param string $license The license value that was delivered.
+		 * @return void
+		 */
+		public function insights_license_sent( $license ) {
+			if ( '' === $license ) {
+				$this->store->clear_license_removed();
+			}
 		}
 
 		/**
@@ -817,6 +843,18 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 */
 		public function mark_license_invalid() {
 			return $this->store->mark_license_invalid();
+		}
+
+		/**
+		 * Stores a license code and clears the "license removed" flag.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @param string $code License code.
+		 * @return bool True if the value was updated, false otherwise.
+		 */
+		public function update_license_code( $code ) {
+			return $this->store->update_license_code( $code );
 		}
 
 		/**

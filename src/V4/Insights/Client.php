@@ -185,7 +185,14 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 				return new WP_Error( 'wprepo_insights_no_consent', 'Insights consent not granted; nothing sent.' );
 			}
 
-			return $this->post( 'track', $this->collector->collect( $event ) );
+			$payload = $this->collector->collect( $event );
+			$result  = $this->post( 'track', $payload );
+
+			if ( ! is_wp_error( $result ) && \array_key_exists( 'license', $payload ) ) {
+				$this->collector->license_sent( $payload['license'] );
+			}
+
+			return $result;
 		}
 
 		/**

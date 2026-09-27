@@ -295,26 +295,77 @@ class IntegrationInsightsTest extends TestCase {
 	}
 
 	/** @test */
-	public function collect_sends_an_empty_license_when_licensed_but_none_is_stored() {
-		// Licensing on, no code: '' tells the server to unbind the install and
-		// free its seat (v4 track license rule).
-		$data = $this->create_integration()->insights_collector->collect();
-
-		$this->assertArrayHasKey( 'license', $data );
-		$this->assertSame( '', $data['license'] );
+	public function collect_omits_the_license_when_licensed_but_none_was_ever_stored() {
+		$this->assertArrayNotHasKey( 'license', $this->create_integration()->insights_collector->collect() );
 	}
 
 	/** @test */
-	public function a_deleted_license_goes_out_as_an_empty_license_on_the_next_track() {
+	public function a_missed_legacy_migration_never_unbinds_a_paying_install() {
+		// A V1-shipped plugin configured with a uid but without product_id:
+		// the customer's key sits under the id-based key the migration
+		// cannot find, so the uid key reads empty.
+		$this->options['my-plugin12_code'] = 'LIC-12';
+
+		$integration = $this->create_integration( [ 'product_id' => '' ] );
+
+		$integration->insights_scheduler->send( 'daily' );
+
+		$this->assertCount( 1, $this->http );
+		$this->assertArrayNotHasKey( 'license', $this->http_body() );
+	}
+
+	/** @test */
+	public function a_removed_license_is_sent_as_empty_once_then_omitted() {
 		$this->options['prod_abc_code'] = 'LIC-12';
 		$integration                    = $this->create_integration();
 
 		$integration->insights_scheduler->send( 'daily' );
 		$this->assertSame( 'LIC-12', $this->http_body( 0 )['license'] );
 
-		unset( $this->options['prod_abc_code'] );
+		// License page saved empty.
+		$integration->delete_license_code();
+		$this->assertArrayNotHasKey( 'prod_abc_code', $this->options );
+		$this->assertArrayHasKey( 'my-plugin_insights_license_removed', $this->options );
+
+		// A failed delivery keeps the flag, so the next track tries again.
+		$this->http_response = [ 'response' => [ 'code' => 500 ], 'body' => '' ];
 		$integration->insights_scheduler->send( 'daily' );
 		$this->assertSame( '', $this->http_body( 1 )['license'] );
+		$this->assertArrayHasKey( 'my-plugin_insights_license_removed', $this->options );
+
+		$this->http_response = [ 'response' => [ 'code' => 202 ], 'body' => '{"message":"Tracked"}' ];
+		$integration->insights_scheduler->send( 'daily' );
+		$this->assertSame( '', $this->http_body( 2 )['license'] );
+		$this->assertArrayNotHasKey( 'my-plugin_insights_license_removed', $this->options );
+
+		// Delivered: later tracks omit `license` again.
+		$integration->insights_scheduler->send( 'daily' );
+		$this->assertArrayNotHasKey( 'license', $this->http_body( 3 ) );
+	}
+
+	/** @test */
+	public function saving_a_key_clears_the_removal_flag() {
+		$this->options['prod_abc_code'] = 'LIC-12';
+		$integration                    = $this->create_integration();
+
+		$integration->delete_license_code();
+		$this->assertArrayHasKey( 'my-plugin_insights_license_removed', $this->options );
+
+		$integration->update_license_code( 'LIC-99' );
+
+		$this->assertSame( 'LIC-99', $this->options['prod_abc_code'] );
+		$this->assertArrayNotHasKey( 'my-plugin_insights_license_removed', $this->options );
+		$this->assertSame( 'LIC-99', $integration->insights_collector->collect()['license'] );
+	}
+
+	/** @test */
+	public function deleting_when_nothing_was_stored_or_licensing_is_off_sets_no_flag() {
+		$this->create_integration()->delete_license_code();
+		$this->assertArrayNotHasKey( 'my-plugin_insights_license_removed', $this->options );
+
+		$this->options['prod_abc_code'] = 'LIC-12';
+		$this->create_integration( [ 'license' => false ] )->delete_license_code();
+		$this->assertArrayNotHasKey( 'my-plugin_insights_license_removed', $this->options );
 	}
 
 	/** @test */

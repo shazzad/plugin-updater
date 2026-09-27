@@ -7,6 +7,7 @@
  */
 namespace Shazzad\PluginUpdater\V4\License;
 
+use Shazzad\PluginUpdater\V4\Insights\Collector as InsightsCollector;
 use Shazzad\PluginUpdater\V4\Integration;
 
 if ( ! \defined( 'ABSPATH' ) ) {
@@ -96,6 +97,60 @@ if ( ! class_exists( __NAMESPACE__ . '\\Store' ) ) :
 		 */
 		public function has_license_code() {
 			return (bool) $this->get_license_code();
+		}
+
+		/**
+		 * Stores a license code the user entered, and clears the "license
+		 * removed" flag (see get_license_removed_key()).
+		 *
+		 * @since 4.0.0
+		 *
+		 * @param string $code License code.
+		 * @return bool True if the value was updated, false otherwise.
+		 */
+		public function update_license_code( $code ) {
+			$this->clear_license_removed();
+
+			return update_option( $this->get_license_code_key(), $code );
+		}
+
+		/**
+		 * Option key of the "license removed" flag: set when a stored license
+		 * code is deleted, cleared when a code is saved or once a track has
+		 * delivered `license: ""` (which makes the server unbind the install).
+		 *
+		 * Keyed like the Insights options (`{slug}_insights_…`, `{slug}` =
+		 * plugin directory), so Insights::uninstall() removes it with them.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @return string
+		 */
+		public function get_license_removed_key() {
+			return sanitize_key( InsightsCollector::basename_to_slug( $this->integration->product_file ) ) . '_insights_license_removed';
+		}
+
+		/**
+		 * Whether a stored license code was explicitly removed and the server
+		 * has not been told yet.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @return bool
+		 */
+		public function is_license_removed() {
+			return (bool) get_option( $this->get_license_removed_key(), false );
+		}
+
+		/**
+		 * Clears the "license removed" flag.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @return void
+		 */
+		public function clear_license_removed() {
+			delete_option( $this->get_license_removed_key() );
 		}
 
 		/**
@@ -293,6 +348,14 @@ if ( ! class_exists( __NAMESPACE__ . '\\Store' ) ) :
 		 * @return bool True if the option was deleted, false otherwise.
 		 */
 		public function delete_license_code() {
+			// Only an explicit removal of a code that was there tells the
+			// server to unbind the install (the next track sends
+			// `license: ""`). A key that is merely unreadable — a missed
+			// legacy migration, a failed option read — never does.
+			if ( $this->integration->license_enabled && $this->has_license_code() ) {
+				update_option( $this->get_license_removed_key(), time(), false );
+			}
+
 			if ( $this->integration->product_uid ) {
 				delete_option( $this->get_legacy_license_code_key() );
 			}

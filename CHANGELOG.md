@@ -48,8 +48,12 @@ number matches the server API it calls (`V4` ↔ `wp-repo/v4`); V1 and V2 stay o
   body every hour. After `403 wprepo_insights_tracking_disabled` only `deactivate` (and opt-out)
   is sent until the plugin version changes (`{slug}_insights_disabled_version`). Network errors
   and 5xx still retry on the next run. `Insights::uninstall()` removes both options
-- New (commercial): with licensing on and no license key stored, tracks send `"license": ""`,
-  which unbinds the install on the server and frees its seat (licensing off: no `license` key)
+- New (commercial): when a stored license key is explicitly removed (license page saved empty),
+  tracks send `"license": ""` until one is accepted (`{slug}_insights_license_removed`); the
+  server unbinds the install and frees the seat on its next install/activation recount. With no
+  key and no removal — never entered, or unreadable (e.g. a missed legacy migration) — no
+  `license` key is sent, so a paying install is never unbound by accident. Saving a key clears
+  the removal; `Insights::uninstall()` removes the option
 - Fixed: `api_url` with a trailing slash built `…/v4//plugins/…`; it is trimmed once
 - Fixed: the update client did not URL-encode the license key, so keys with `+`, `&`, `#` or
   spaces reached the server altered

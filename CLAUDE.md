@@ -85,8 +85,12 @@ Two entry points over one set of Insights parts:
   `wprepo_sync_license_data_{license_name}` sync checks the license and backs up the daily track, `Tracker`
   activate/deactivate and `Updater` post-upgrade only refresh caches, and the Insights
   `Scheduler` sends the `activate`/`deactivate`/`upgrade`/daily tracks (license key included
-  via `get_insights_license()` when licensing is on — `""` when no key is stored, which makes
-  the server unbind the install and free the seat; no `license` key when licensing is off).
+  via `get_insights_license()` when licensing is on; `""` only after an explicit removal —
+  `Store::delete_license_code()` of a stored code sets `{slug}_insights_license_removed`,
+  `update_license_code()` clears it, and so does the first 2xx track that carried `""` (via
+  the collector's `license_sent_callback`). The server then unbinds the install and frees the
+  seat on its next recount. No code and no flag → no `license` key, never `""`: an unreadable
+  key (missed legacy migration) must not unbind a paying install).
   The update `Client` `rawurlencode()`s its query args (`add_query_arg()` does not). `meta`/`meta_callback`/`setMeta()`/
   `setMetaCallback()` feed the collector. `tests/V4/CommercialIsolationTest.php` keeps the
   commercial files off `Insights\Notice`, the free entry point, `ping` and V1/V2.

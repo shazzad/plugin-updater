@@ -100,9 +100,16 @@ class IntegrationMigrationTest extends IntegrationTestCase {
 			$deleted[] = $key;
 			return true;
 		} );
+		$updated = [];
+		Functions\when( 'update_option' )->alias( function ( $key ) use ( &$updated ) {
+			$updated[] = $key;
+			return true;
+		} );
 
 		$this->assertTrue( $integration->delete_license_code() );
 		$this->assertSame( [ 'my-plugin42_code', 'prod_testuid_code' ], $deleted );
+		// A stored code was removed: the next track tells the server.
+		$this->assertSame( [ 'my-plugin_insights_license_removed' ], $updated );
 	}
 
 	/** @test */

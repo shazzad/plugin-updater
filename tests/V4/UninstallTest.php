@@ -33,7 +33,8 @@ class UninstallTest extends TestCase {
 			"{$slug}_insights_last_send"      => 123,
 			"{$slug}_insights_optout_pending" => [ 'since' => 1, 'last_try' => 1 ],
 			"{$slug}_insights_last_attempt"   => 456,
-			"{$slug}_insights_disabled_version" => '2.0.0',
+			"{$slug}_insights_disabled_version" => [ 'version' => '2.0.0', 'since' => 1 ],
+			"{$slug}_insights_license_removed"  => 1,
 		];
 	}
 

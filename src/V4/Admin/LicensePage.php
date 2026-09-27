@@ -200,7 +200,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\LicensePage' ) ) :
 			}
 
 			if ( ! empty( $response['license'] ) ) {
-				update_option( $this->integration->get_license_code_key(), $key );
+				$this->integration->update_license_code( $key );
 				$this->integration->update_license_data( $response['license'] );
 
 				$this->integration->refresh_updates_transient();

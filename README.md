@@ -134,9 +134,12 @@ still works (it also turns Insights on), but the constructor has already emitted
 product_uid" `_doing_it_wrong()` notice by then, so debug logs show it on every request.
 
 Tracking needs no consent here and never shows a notice. The stored license key is included
-so the server can bind the install; with licensing on and **no** key stored, `license` is
-sent as `""`, which unbinds the install and frees its license seat on the server. With
-licensing off no `license` key is sent at all.
+so the server can bind the install. When a stored key is **explicitly removed** (the license
+page saved empty), the next tracks send `license: ""` until one is accepted: the server unbinds
+the install, and the seat is freed on its next install/activation recount (not at once). No
+key and no removal — never entered, or a key the site cannot read, such as a missed legacy
+migration — sends no `license` key, like licensing off, so a paying install is never unbound
+by accident. Saving a key clears the removal.
 The Insights parts are public properties: `$insights_consent`, `$insights_collector`,
 `$insights_client`, `$insights_scheduler` (all `null` when tracking is off).
 
@@ -314,7 +317,9 @@ Options per plugin (`{slug}` = plugin directory): `{slug}_insights_consent`,
 `{slug}_insights_token`, `{slug}_insights_last_send`, `{slug}_insights_optout_pending` (a failed
 opt-out awaiting retry), `{slug}_insights_last_attempt` (time of the last track the server
 refused with a 4xx) and `{slug}_insights_disabled_version` (plugin version the server answered
-`403 wprepo_insights_tracking_disabled`); cron hook `wprepo_insights_track_{slug}`.
+`403 wprepo_insights_tracking_disabled`), plus, for commercial plugins,
+`{slug}_insights_license_removed` (a removed license key not yet reported); cron hook
+`wprepo_insights_track_{slug}`.
 
 When the server refuses a track with any 4xx, the next daily track waits the same 20 hours as
 after a success, so the hourly license sync does not re-send a body the server will refuse
@@ -325,7 +330,7 @@ the next run. Deactivation clears the cron
 re-activation does not ask again.
 
 Remove them on uninstall with `\Shazzad\PluginUpdater\V4\Insights::uninstall( $file )` — it
-deletes the six options and the cron on every site of a multisite network and sends nothing.
+deletes these options and the cron on every site of a multisite network and sends nothing.
 It works for commercial `V4\Integration` plugins too (same keys; the consent option is simply
 absent there).
 

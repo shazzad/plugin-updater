@@ -469,6 +469,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 				$consent->get_optout_pending_key(),
 				"{$slug}_insights_last_attempt",
 				"{$slug}_insights_disabled_version",
+				"{$slug}_insights_license_removed",
 			];
 		}
 	}

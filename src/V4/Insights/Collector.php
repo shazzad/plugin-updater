@@ -95,6 +95,17 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 		public $license_callback = null;
 
 		/**
+		 * Called with the `license` value of a track the server accepted
+		 * (2xx). Lets the commercial entry point know a `license: ""` was
+		 * delivered.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @var callable|null
+		 */
+		public $license_sent_callback = null;
+
+		/**
 		 * Constructor.
 		 *
 		 * @since 4.0.0
@@ -106,7 +117,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 		 *
 		 *     @type array    $meta             Static metadata.
 		 *     @type callable $meta_callback    Returns a metadata array.
-		 *     @type callable $license_callback Returns the license key.
+		 *     @type callable $license_callback      Returns the license key.
+		 *     @type callable $license_sent_callback Called with the `license` a 2xx track carried.
 		 * }
 		 */
 		public function __construct( $file, Consent $consent, array $args = [] ) {
@@ -123,6 +135,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 
 			if ( isset( $args['license_callback'] ) && \is_callable( $args['license_callback'] ) ) {
 				$this->license_callback = $args['license_callback'];
+			}
+
+			if ( isset( $args['license_sent_callback'] ) && \is_callable( $args['license_sent_callback'] ) ) {
+				$this->license_sent_callback = $args['license_sent_callback'];
 			}
 		}
 
@@ -417,6 +433,20 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 			$license = \call_user_func( $this->license_callback );
 
 			return \is_string( $license ) ? \trim( $license ) : null;
+		}
+
+		/**
+		 * Reports the `license` value of a track the server accepted.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @param string $license The delivered value.
+		 * @return void
+		 */
+		public function license_sent( $license ) {
+			if ( \is_callable( $this->license_sent_callback ) ) {
+				\call_user_func( $this->license_sent_callback, $license );
+			}
 		}
 
 		/**
