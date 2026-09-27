@@ -15,7 +15,7 @@ number matches the server API it calls (`V4` ↔ `wp-repo/v4`); V1 and V2 stay o
   `wprepo_insights_track_{slug}` track plus `activate` / `deactivate` / `upgrade` / `optin`
   events to `{api_url}/plugins/{uid}/track` on `wp-repo/v4`; `opt_out()` asks the server to delete
   the site's data. Loads no update or license code; free plugins ship only
-  `src/V4/Insights.php` + `src/V4/Insights/` (README has the build strip recipe)
+  `src/V4/Insights.php` + `src/V4/Insights/` (`docs/v4.md` has the build strip recipe)
 - New: `V4\Insights\{Consent,Collector,Client,Scheduler,Notice}` — consent state + install
   token; payload builder (site, admin, WordPress + theme, server, users by role, plugins with
   the active list capped at 200, meta, license); the HTTP client, which refuses to send without
@@ -78,9 +78,14 @@ number matches the server API it calls (`V4` ↔ `wp-repo/v4`); V1 and V2 stay o
   and by the daily cron until it succeeds, a new opt-in supersedes it, or 7 days pass
 - New (review): `Insights::uninstall( $file )` deletes every Insights option and the cron, on
   every site of a multisite network; network deactivation now clears the cron on every site
-- Docs (review): README's V2 → V4 migration note lists the dropped `$admin_email` / `$admin_name`
+- Docs (review): the V2 → V4 migration note (now in `docs/v4.md`) lists the dropped `$admin_email` / `$admin_name`
   properties and `Client::ping()`, and that assigning `$integration->meta` / `->meta_callback`
   after construction does not reach the payload (use `setMeta()` / `setMetaCallback()`)
+- Docs: README split into per-version guides — `docs/v4.md`, `docs/v2.md`,
+  `docs/v1-legacy.md`; the README keeps the overview, "Which namespace to use" and what every
+  version shares (server responses, update hooks, license page, security). The guides ship in
+  the package so the README's links work from `vendor/` (only `docs/superpowers/` and
+  `docs/testing/` stay export-ignored)
 - Requires `shazzad/plugin-repo` 2.9.0+ on the server (the `wp-repo/v4` `plugins/{uid}` API
   with `track` + `optout`)
 

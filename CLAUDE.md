@@ -59,7 +59,7 @@ Two entry points over one set of Insights parts:
   Scheduler,Notice}` and nothing else. Nothing is sent before an admin clicks Allow (or the
   plugin calls `opt_in()`). It must **never** reference `Updater`, `License*`, `Admin\*`,
   `Integration`, `Tracker` or V1/V2 — `tests/V4/InsightsIsolationTest.php` enforces it, because
-  free plugins ship only `src/V4/Insights.php` + `src/V4/Insights/` (strip recipe in README).
+  free plugins ship only `src/V4/Insights.php` + `src/V4/Insights/` (strip recipe in `docs/v4.md`).
 - **`V4\Integration` — commercial plugins.** A copy of the V2 entry point (same config, same
   `$store`/`$client`/`$updater`/`$tracker`/`$admin`/`$notices`/`$update_message`) plus the
   Insights parts built in **commercial mode** (consent implied, never asked, `Notice` never

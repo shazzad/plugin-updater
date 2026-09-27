@@ -75,7 +75,8 @@
 	"archive": {
 		"exclude": [
 			"/tests",
-			"/docs",
+			"/docs/superpowers",
+			"/docs/testing",
 			"/.github",
 			"/.gitignore",
 			"/phpunit.xml",

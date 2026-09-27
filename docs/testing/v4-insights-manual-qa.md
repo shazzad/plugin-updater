@@ -166,8 +166,8 @@ A V4 config without `product_uid` must send nothing: with `WP_DEBUG` on it logs 
 `_doing_it_wrong` notice ("Missing required config key \"product_uid\"") and no install row
 appears.
 
-Optional: the free-plugin zip strip recipe is in plugin-updater's README ("Shipping a free
-wp.org plugin"). Use it when Adminkeep adopts Insights, then run Plugin Check on that zip.
+Optional: the free-plugin zip strip recipe is in plugin-updater's `docs/v4.md` ("Shipping a
+free wp.org plugin"). Use it when Adminkeep adopts Insights, then run Plugin Check on that zip.
 
 ## 4. Clean up
 
