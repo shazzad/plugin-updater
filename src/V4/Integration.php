@@ -12,7 +12,7 @@ use Shazzad\PluginUpdater\V4\Insights\Collector as InsightsCollector;
 use Shazzad\PluginUpdater\V4\Insights\Consent as InsightsConsent;
 use Shazzad\PluginUpdater\V4\Insights\Scheduler as InsightsScheduler;
 
-if ( ! \defined( 'ABSPATH' ) ) {
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 

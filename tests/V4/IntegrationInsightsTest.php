@@ -294,6 +294,24 @@ class IntegrationInsightsTest extends TestCase {
 		$this->assertSame( [ 'email' => '', 'name' => 'Site Admin' ], $data['admin'] );
 	}
 
+	/**
+	 * Commercial plugins keep the full payload the free one trims.
+	 *
+	 * @test
+	 */
+	public function commercial_collect_keeps_the_full_payload() {
+		$data = $this->create_integration()->insights_collector->collect();
+
+		$this->assertArrayHasKey( 'users', $data );
+		$this->assertArrayHasKey( 'admin', $data );
+		$this->assertArrayHasKey( 'debug_mode', $data['wp'] );
+		$this->assertArrayHasKey( 'max_execution_time', $data['server'] );
+		$this->assertArrayHasKey( 'upload_max_filesize', $data['server'] );
+		$this->assertArrayHasKey( 'active_count', $data['plugins'] );
+		$this->assertArrayHasKey( 'inactive_count', $data['plugins'] );
+		$this->assertArrayHasKey( 'url', $data['plugins']['active'][0] );
+	}
+
 	/** @test */
 	public function collect_omits_the_license_when_licensed_but_none_was_ever_stored() {
 		$this->assertArrayNotHasKey( 'license', $this->create_integration()->insights_collector->collect() );

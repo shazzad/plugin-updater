@@ -66,8 +66,8 @@ abstract class TestCase extends PHPUnitTestCase {
 		];
 
 		$this->installed_plugins = [
-			'my-plugin/my-plugin.php' => [ 'Name' => 'My Plugin', 'Version' => '2.0.0' ],
-			'akismet/akismet.php'     => [ 'Name' => 'Akismet', 'Version' => '5.3' ],
+			'my-plugin/my-plugin.php' => [ 'Name' => 'My Plugin', 'Version' => '2.0.0', 'PluginURI' => 'https://example.com/my-plugin/' ],
+			'akismet/akismet.php'     => [ 'Name' => 'Akismet', 'Version' => '5.3', 'PluginURI' => 'https://akismet.com/' ],
 			'hello.php'               => [ 'Name' => 'Hello Dolly', 'Version' => '1.7.2' ],
 		];
 		$this->active_plugins    = [ 'my-plugin/my-plugin.php', 'hello.php' ];

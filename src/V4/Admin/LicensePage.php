@@ -9,7 +9,7 @@ namespace Shazzad\PluginUpdater\V4\Admin;
 
 use Shazzad\PluginUpdater\V4\Integration;
 
-if ( ! \defined( 'ABSPATH' ) ) {
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 

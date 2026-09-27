@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.1.0 - Unreleased
+
+V4 only; V1 (`src/`) and V2 (`src/V2/`) are byte-identical to 4.0.0. V4 is changed in place: it
+was released the same day and no plugin ships it yet.
+
+- Changed: free plugins (`V4\Insights`, consent mode) send a trimmed payload — site (url, name,
+  locale, multisite, is_local), WordPress (version, memory limit, theme), server (PHP and
+  database versions, server software, PHP memory limit), the active plugin list, the plugin's
+  `meta` and the protocol fields. No longer sent in consent mode: the `admin` block (admin
+  email and name), the `users` block, `wp.debug_mode`, `server.max_execution_time`,
+  `server.upload_max_filesize`, `plugins.active_count` and `plugins.inactive_count`
+- Unchanged: commercial plugins (`V4\Integration`) still send the full payload
+- New: each `plugins.active` entry carries `url` — the plugin's `Plugin URI` header through
+  `esc_url_raw()`, `''` when absent — in both modes
+- Changed: the consent notice's "What we collect" list matches the trimmed payload line for
+  line. The generic "Usage statistics specific to {name}" line appears only when the plugin
+  sends `meta` and passes no `notice.items`; given items replace it
+- Fixed: every `src/V4/` file guards with `defined( 'ABSPATH' )` instead of `\defined( … )`,
+  which Plugin Check's direct-file-access check (it scans `vendor/`) did not recognise
+
 ## 4.0.0 - 2026-09-27
 
 New `Shazzad\PluginUpdater\V4` namespace under `src/V4/`: consent-based usage tracking
