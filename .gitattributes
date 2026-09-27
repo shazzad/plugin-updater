@@ -1,5 +1,6 @@
 /tests                export-ignore
-/docs                 export-ignore
+/docs/superpowers     export-ignore
+/docs/testing         export-ignore
 /phpunit.xml.dist     export-ignore
 /.github              export-ignore
 /.gitignore           export-ignore

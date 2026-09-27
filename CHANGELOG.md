@@ -1,5 +1,94 @@
 # Changelog
 
+## 4.0.0 - Unreleased
+
+New `Shazzad\PluginUpdater\V4` namespace under `src/V4/`: consent-based usage tracking
+("Insights") for free plugins, and a commercial entry point that tracks through the same
+Insights parts. V1 (`src/`) and V2 (`src/V2/`) are byte-identical to 2.1.1 — plugins on them see
+no change; V2 is now stable (additive fixes only) and V4 takes new development.
+
+There is no 3.0.0. The namespace was built as `V3` and renamed `V4` before release so that its
+number matches the server API it calls (`V4` ↔ `wp-repo/v4`); V1 and V2 stay on `wp-repo/v3`.
+
+- New: `V4\Insights` — free wordpress.org plugin entry point. Appsero-style consent notice
+  (Allow / No thanks, nonce'd, `manage_options`), nothing sent before consent, then a daily
+  `wprepo_insights_track_{slug}` track plus `activate` / `deactivate` / `upgrade` / `optin`
+  events to `{api_url}/plugins/{uid}/track` on `wp-repo/v4`; `opt_out()` asks the server to delete
+  the site's data. Loads no update or license code; free plugins ship only
+  `src/V4/Insights.php` + `src/V4/Insights/` (`docs/v4.md` has the build strip recipe)
+- New: `V4\Insights\{Consent,Collector,Client,Scheduler,Notice}` — consent state + install
+  token; payload builder (site, admin, WordPress + theme, server, users by role, plugins with
+  the active list capped at 200, meta, license); the HTTP client, which refuses to send without
+  consent; the scheduler; the notice
+- New: both entry points require `product_uid` — `wp-repo/v4` addresses a plugin as
+  `{api_url}/plugins/{uid}/…` and answers a numeric id with `404 rest_no_route`. Without a uid
+  `_doing_it_wrong()` fires and nothing is called: no update check, license check or track
+  (`V4\Insights` also draws no consent notice). `product_id` stays optional, is never sent, and
+  only reaches the id-keyed license options of plugins that shipped on V1.
+- New: `V4\Integration` — commercial entry point. Same config, storage keys, transients, cron
+  hook, license page, notices and update-row message as V2 (moving V2 → V4 keeps every saved
+  license). `api_url` moves from `wp-repo/v3` to `wp-repo/v4`, which serves updates, licensing
+  and Insights from one base. Tracking runs through the Insights parts in commercial mode — no consent step,
+  no notice, license key included — exposed as `$insights_consent`, `$insights_collector`,
+  `$insights_client`, `$insights_scheduler`
+- Changed (V4 vs V2): API URLs are `{api_url}/plugins/{uid}/{updates,details,check_license}`
+  (V2: `{api_url}/products/{uid-or-id}/…` on `wp-repo/v3`); `get_api_product_key()` returns
+  the uid only, never the numeric id. The track payload carries `plugin_version` /
+  `plugin_status`; config keys and the `product_*` properties keep their names.
+- New: an `api_url` on `wp-repo/v3` makes V4 refuse every call — updates, license checks and
+  Insights, in both entry points — with a `_doing_it_wrong()` notice, a `wprepo_v3_api_url` /
+  `wprepo_insights_v3_api_url` `WP_Error` and no request (v3 has no `plugins/{uid}` routes). The
+  refusal is never read as an invalid license. The free entry point draws no consent notice then
+- New: a `product_uid` that does not match the server's route pattern (`prod_` + lowercase
+  letters and digits) draws a `_doing_it_wrong()` notice and is treated as missing
+- New: `Insights::opt_in()` returns a `WP_Error` and stores no consent, token or cron when
+  nothing could be sent (no valid uid, no or a v3 `api_url`)
+- New: after a track refused with a 4xx, the next daily track waits 20 hours
+  (`{slug}_insights_last_attempt`), so the hourly license sync no longer re-sends a refused
+  body every hour. After `403 wprepo_insights_tracking_disabled` no track is sent (opt-out
+  still is) until the plugin version changes or 7 days pass (`{slug}_insights_disabled_version`). Network errors
+  and 5xx still retry on the next run. `Insights::uninstall()` removes both options
+- New (commercial): when a stored license key is explicitly removed (license page saved empty),
+  tracks send `"license": ""` until one is accepted (`{slug}_insights_license_removed`); the
+  server unbinds the install and frees the seat on its next install/activation recount. With no
+  key and no removal — never entered, or unreadable (e.g. a missed legacy migration) — no
+  `license` key is sent, so a paying install is never unbound by accident. Saving a key clears
+  the removal; `Insights::uninstall()` removes the option
+- Fixed: `api_url` with a trailing slash built `…/v4//plugins/…`; it is trimmed once
+- Fixed: the update client did not URL-encode the license key, so keys with `+`, `&`, `#` or
+  spaces reached the server altered
+- Changed (V4 vs V2): `Client::ping()` removed. The hourly `wprepo_sync_license_data_{name}`
+  sync only checks the license; activation, deactivation and upgrade refresh caches and leave
+  the (single) track to the Insights scheduler. `admin_email` / `admin_name` left
+  `Integration` (the collector reads them at send time); `meta` / `meta_callback` /
+  `setMeta()` / `setMetaCallback()` now feed the Insights payload
+- Fixed (review): commercial plugins updated in place V2 → V4 on sites where nobody opens
+  wp-admin never scheduled the daily Insights cron, so they never tracked and went inactive on
+  the server after 7 days. The hourly license sync now self-heals the daily cron and sends the
+  daily track when due (the 20 h minimum interval prevents doubles)
+- Fixed (review): the consent notice under-disclosed the payload. It now lists the active theme,
+  active plugins' names and versions, user counts by role, WordPress memory limit and debug
+  mode, and the multisite and local-site flags; adds "Usage statistics specific to {name}" when
+  `meta` / `meta_callback` is set; and appends the new `notice.items` config key (extra lines)
+- Fixed (review): the notice said "Your name and email address", but the payload carries the
+  site's `admin_email` and the first administrator's name — now "Your site's admin email address
+  and administrator name"
+- Fixed (review): `Insights::opt_out()` forgot the deletion request when the `optout` call failed.
+  It is now kept in `{slug}_insights_optout_pending` and retried on `admin_init` (at most hourly)
+  and by the daily cron until it succeeds, a new opt-in supersedes it, or 7 days pass
+- New (review): `Insights::uninstall( $file )` deletes every Insights option and the cron, on
+  every site of a multisite network; network deactivation now clears the cron on every site
+- Docs (review): the V2 → V4 migration note (now in `docs/v4.md`) lists the dropped `$admin_email` / `$admin_name`
+  properties and `Client::ping()`, and that assigning `$integration->meta` / `->meta_callback`
+  after construction does not reach the payload (use `setMeta()` / `setMetaCallback()`)
+- Docs: README split into per-version guides — `docs/v4.md`, `docs/v2.md`,
+  `docs/v1-legacy.md`; the README keeps the overview, "Which namespace to use" and what every
+  version shares (server responses, update hooks, license page, security). The guides ship in
+  the package so the README's links work from `vendor/` (only `docs/superpowers/` and
+  `docs/testing/` stay export-ignored)
+- Requires `shazzad/plugin-repo` 2.9.0+ on the server (the `wp-repo/v4` `plugins/{uid}` API
+  with `track` + `optout`)
+
 ## 2.1.1 - 2026-09-15
 
 - Restored (V2): the sitewide expired-license admin notice is back, exactly as in 2.0.1. 2.1.0

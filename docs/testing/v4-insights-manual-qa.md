@@ -1,0 +1,197 @@
+# V4 Insights — how to test
+
+What's being tested: usage tracking in plugin-updater **V4** (built on 2026-09-26 as `V3`,
+renamed `V4` before release; ships as 4.0.0).
+- **Free plugins** (`V4\Insights`) show an Appsero-style notice and send nothing until an admin
+  clicks **Allow**. After that they send site, admin name + email, environment, plugin list and
+  the plugin's own counters once a day.
+- **Commercial plugins** (`V4\Integration`) do the same without asking, on top of V2's updates
+  and licensing.
+- The server side is plugin-repo's `wp-repo/v4` API: every call goes to
+  `/wp-json/wp-repo/v4/plugins/{uid}/…` (`updates`, `details`, `check_license`, `track`,
+  `optout`, …). Only the `prod_…` uid is accepted, so both entry points require `product_uid`;
+  the track payload says `plugin_version` / `plugin_status`. Contract: plugin-repo
+  `docs/v4-api.md`.
+
+Where the work lives (the first round, shazzad/plugin-updater#29 as `V3`, was merged and
+reverted by #30 until the v4 API was final):
+
+| Repo | PR / state | Branch |
+|---|---|---|
+| plugin-updater | not opened yet | `feature/v4-client` |
+| plugin-repo | shazzad/plugin-repo#80, merged (2.9.0) | `main` |
+| plugin-updater-test | not opened yet | `feature/v4-namespace` |
+
+Everything runs on the local w4dev stack (https://w4dev.shazzad.me). Nothing touches w4dev.com.
+Expect **15 minutes** for Part 1, about **15 more** for Part 2 in the browser, and a few minutes
+for Part 3's isolation checks.
+
+---
+
+## 0. Setup (once)
+
+```bash
+cd ~/personal-assistant/w4dev-project
+git -C shazzad-plugin-updater      switch feature/v4-client
+git -C shazzad-plugin-repo         switch main
+git -C shazzad-plugin-updater-test switch feature/v4-namespace
+docker compose up -d
+
+# shortcut used below
+wpc() { docker compose exec -T -u 1000 -e HOME=/tmp wordpress wp "$@"; }
+wpc eval 'Shazzad\PluginRepo\Plugin::get_instance()->maybe_upgrade_db();'   # creates wprepo_install_insights
+```
+
+## 1. Automated checks (≈5 min)
+
+```bash
+# client library: every suite, V1 + V2 + V4
+(cd shazzad-plugin-updater && composer test)
+# expect: OK, 456 tests (9 "risky" = assertion-less migration tests, pre-existing pattern)
+
+# server: the v4 routes, the Insights suites, and one old suite as a regression spot-check
+for t in v4-public-api insights-track insights-optout install-dedupe; do
+  wpc eval-file wp-content/plugins/shazzad-plugin-repo/tests/$t-test.php | tail -1
+done
+# expect: "… passed, 0 failed" for each
+
+# end to end: real HTTP from two fixture plugins to the local server
+shazzad-plugin-updater-test/bin/insights-e2e | tail -1
+# expect: "… passed, 0 failed"
+```
+
+`bin/insights-e2e` also leaves two fixture plugins installed (inactive) and two local products
+set up. Part 2 uses them.
+
+## 2. By hand in the browser (≈15 min)
+
+Log in at https://w4dev.shazzad.me/wp-admin.
+
+### A. Free plugin: the consent notice
+
+1. Reset the free fixture to "never asked":
+   ```bash
+   wpc option delete spu-insights-free_insights_consent
+   ```
+2. **Plugins** → activate **SPU Insights Free Test**.
+   - [ ] A blue notice appears: "Want to help make **SPU Insights Free Test** even better? Allow
+         SPU Insights Free Test to collect diagnostic data and usage information."
+   - [ ] **(what we collect)** expands (no page reload, works with JS off). The list includes
+         "Your site's admin email address and administrator name", the active theme, the names
+         and versions of active plugins, user counts by role, WordPress memory limit and debug
+         mode, the multisite / local-site flags, and "Usage statistics specific to SPU Insights
+         Free Test" (the fixture sends `meta`), plus a "Learn more" link to the privacy page.
+   - [ ] The notice shows on other admin screens too (the default is every screen).
+3. Check that nothing was sent: **Plugin Repo → Installs**, filter the plugin to *SPU Insights Free Test*.
+   - [ ] No rows.
+4. Click **No thanks**.
+   - [ ] The notice disappears and stays gone after a reload.
+   - [ ] Installs still has no rows for *SPU Insights Free Test*.
+5. Reset again (`wpc option delete spu-insights-free_insights_consent`), reload, click **Allow**.
+   - [ ] The notice disappears.
+   - [ ] **Installs** now has one row for *SPU Insights Free Test*, showing your site URL, admin
+         email and name, PHP/WP versions and status *active*.
+   - [ ] Open the row (**View**). An **Insights** block shows: mode *consent*, site name, theme,
+         user count, active/inactive plugin counts, the active plugin list, and the date consent
+         was given.
+6. **Plugins** → deactivate the free fixture, then reload the Installs row.
+   - [ ] Status is *inactive*.
+   - [ ] Reactivating shows **no** notice (the answer is remembered) and the row goes back to *active*.
+7. Opt out (the fixture has no settings screen, so do it through code):
+   ```bash
+   wpc eval '$GLOBALS["spu_insights_free"]->opt_out();'
+   ```
+   - [ ] The Installs row is gone, including its Insights block.
+   - [ ] Nothing reappears after `wpc cron event run --due-now`.
+   - [ ] `wpc option get spu-insights-free_insights_optout_pending` finds nothing (the opt-out
+         went through, so no retry is pending).
+8. Uninstall cleanup (the fixture has no uninstall routine, so call it directly):
+   ```bash
+   wpc eval '\Shazzad\PluginUpdater\V4\Insights::uninstall( "spu-insights-free/spu-insights-free.php" );'
+   wpc option list --search='spu-insights-free_insights_*' --format=count
+   wpc cron event list --hook=wprepo_insights_track_spu-insights-free --format=count
+   ```
+   - [ ] Both counts are `0`. Re-running Part 1's `bin/insights-e2e` recreates everything.
+
+### B. Commercial plugin: no notice, license bound
+
+1. **Plugins** → activate **SPU Insights Commercial Test**.
+   - [ ] **No** consent notice.
+   - [ ] **Installs**, filtered to *SPU Insights Commercial Test*, has a row straight away.
+2. **Plugins → SPU Insights Commercial License**: paste the code from
+   `wpc option get spu_insights_commercial_license` and save.
+   - [ ] The page accepts it (same license UI as V2).
+3. Force a daily send:
+   ```bash
+   wpc option delete spu-insights-commercial_insights_last_send
+   wpc cron event run wprepo_insights_track_spu-insights-commercial
+   ```
+   - [ ] The Installs row now shows the license, and its **Insights** block says mode *commercial*.
+   - [ ] Meta shows `orders_synced = 7`.
+4. The hourly backup (a plugin updated in place on a site nobody opens wp-admin on). Remove the
+   daily event and the last-send time, then run only the hourly license sync:
+   ```bash
+   wpc cron event delete wprepo_insights_track_spu-insights-commercial
+   wpc option delete spu-insights-commercial_insights_last_send
+   wpc cron event run "$(wpc cron event list --field=hook | grep '^wprepo_sync_license_data_spu-insights-commercial')"
+   wpc cron event list --hook=wprepo_insights_track_spu-insights-commercial --format=count
+   ```
+   - [ ] The count is `1` (the daily event was re-created) and the Installs row's last check-in
+         moved to now.
+   - [ ] Running the hourly event again right away sends nothing new (20-hour guard).
+
+### C. The V2 test plugin still works
+
+**Tools → SPU Test Scenarios** (the V2 mock harness):
+- [ ] "Update available" → **Force update check** still offers an update.
+- [ ] "Ping" still logs a request.
+
+## 3. Isolation checks (≈2 min)
+
+```bash
+cd ~/personal-assistant/w4dev-project/shazzad-plugin-updater
+git diff main -- src/Admin.php src/Client.php src/Integration.php src/Tracker.php src/Updater.php src/V2 | wc -l
+# expect: 0 (V1 and V2 byte-identical)
+
+cd ../shazzad-plugin-repo
+git diff origin/main --stat -- includes/RestController/V3
+# expect: nothing (the frozen v3 routes untouched)
+
+# v4 takes the uid only: a numeric id is not a route
+curl -s https://w4dev.shazzad.me/wp-json/wp-repo/v4/plugins/12/updates
+# expect: {"code":"rest_no_route",…}
+```
+
+A V4 config without `product_uid` must send nothing: with `WP_DEBUG` on it logs a
+`_doing_it_wrong` notice ("Missing required config key \"product_uid\"") and no install row
+appears.
+
+Optional: the free-plugin zip strip recipe is in plugin-updater's `docs/v4.md` ("Shipping a
+free wp.org plugin"). Use it when Adminkeep adopts Insights, then run Plugin Check on that zip.
+
+## 4. Clean up
+
+```bash
+cd ~/personal-assistant/w4dev-project
+shazzad-plugin-updater-test/bin/insights-e2e --cleanup   # fixtures, products, installs, options
+git -C shazzad-plugin-repo switch fix/versioned-download-url   # back to your #74 branch, if wanted
+```
+
+## Before shipping (not part of testing)
+
+- **Deploy plugin-repo 2.9.0 before any plugin ships on V4.** V4 plugins call
+  `wp-repo/v4/plugins/{uid}/…`, which exists only from 2.9.0 (2.8.0's v4 used
+  `products/{key}` routes): on an older server tracks, **update checks and license checks**
+  would all 404 until it is deployed.
+- On deploy, the first request runs `Installer::upgrade()` once, because of the new
+  `wprepo_db_version` schema check. That is the same as any version bump, and it creates
+  `wprepo_install_insights`.
+- The free products on the repo server (Adminkeep later) need a product row with **Track
+  install** on and no versions uploaded.
+- plugin-updater releases as **4.0.0** (CHANGELOG entry is ready, marked unreleased). There is
+  no 3.0.0.
+- Every plugin moving to V4 needs its `product_uid` in the config; a V2 config carrying only
+  `product_id` sends nothing on V4.
+- Separate from this feature, shazzad/plugin-repo#78 tightens how the **existing** v3 API looks
+  up license codes and install URLs (found during this review). It is independent of the v4
+  work; merge it first so 2.8.0 carries it (the fix is then in both v3 and v4).
