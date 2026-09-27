@@ -99,9 +99,10 @@ Insights storage per plugin (`{slug}` = plugin directory): options `{slug}_insig
 `{slug}_insights_token`, `{slug}_insights_last_send`, `{slug}_insights_optout_pending` (failed
 opt-out, retried up to 7 days), `{slug}_insights_last_attempt` (last 4xx-refused track: the next
 daily track waits `MIN_INTERVAL`, so the hourly sync never re-POSTs a refused body) and
-`{slug}_insights_disabled_version` (after `403 wprepo_insights_tracking_disabled`, only
-`deactivate` and opt-out go out until the installed version differs; 5xx and network errors
-keep retrying); daily cron `wprepo_insights_track_{slug}`, re-created on
+`{slug}_insights_disabled_version` (`[version, since]` after `403
+wprepo_insights_tracking_disabled`: no track at all, `deactivate` included — the server's 403
+check runs first — until the installed version differs or `Scheduler::PAUSE_MAX` (7 days)
+passes; opt-out is not a track and still goes out; 5xx and network errors keep retrying); daily cron `wprepo_insights_track_{slug}`, re-created on
 `admin_init` when consent is granted and, for commercial plugins, by the hourly license sync
 (which also sends the daily track when due). `Insights::uninstall( $file )` removes all of it,
 network-wide. The notice's "What we collect" list (`Notice::get_collected_items()`) must stay in

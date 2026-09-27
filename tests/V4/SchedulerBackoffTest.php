@@ -8,9 +8,9 @@ use Shazzad\PluginUpdater\V4\Integration;
 /**
  * What the scheduler does after the server refuses a track: a 4xx waits
  * MIN_INTERVAL like a success (the hourly license sync must not re-POST the
- * same body every hour); `403 wprepo_insights_tracking_disabled` stops
- * everything but `deactivate` until the plugin version changes; network
- * errors and 5xx keep retrying.
+ * same body every hour); `403 wprepo_insights_tracking_disabled` pauses
+ * every track until the plugin version changes or 7 days pass (opt-out is
+ * not a track and still goes out); network errors and 5xx keep retrying.
  */
 class SchedulerBackoffTest extends TestCase {
 
@@ -97,7 +97,7 @@ class SchedulerBackoffTest extends TestCase {
 	}
 
 	/** @test */
-	public function tracking_disabled_stops_every_track_but_deactivate_until_the_version_changes() {
+	public function tracking_disabled_pauses_every_track_but_not_the_optout() {
 		$this->consented();
 		$insights  = $this->create_insights();
 		$scheduler = $insights->scheduler;
@@ -106,27 +106,67 @@ class SchedulerBackoffTest extends TestCase {
 		$scheduler->run_daily();
 
 		$this->assertCount( 1, $this->http );
-		$this->assertSame( '2.0.0', $this->options['my-plugin_insights_disabled_version'] );
+		$pause = $this->options['my-plugin_insights_disabled_version'];
+		$this->assertSame( '2.0.0', $pause['version'] );
+		$this->assertEqualsWithDelta( time(), $pause['since'], 5 );
 		$this->assertTrue( $scheduler->is_tracking_disabled() );
 
-		// Even long after MIN_INTERVAL: no daily, activate or optin track.
-		$this->options['my-plugin_insights_last_attempt'] = time() - 10 * Scheduler::MIN_INTERVAL;
+		// Well past MIN_INTERVAL, still inside the pause: no track of any
+		// kind — the server's 403 check runs first, so even `deactivate`
+		// could not be recorded.
+		$this->options['my-plugin_insights_last_attempt'] = time() - 2 * Scheduler::MIN_INTERVAL;
+		$options_before                                   = $this->options;
 		$this->respond( 202 );
+
 		$scheduler->run_daily();
 		$scheduler->product_activated();
-		$this->assertSame( 'wprepo_insights_tracking_paused', $scheduler->send( 'optin' )->get_error_code() );
-		$this->assertCount( 1, $this->http );
-
-		// Deactivation still reports, as the contract expects.
 		$scheduler->product_deactivated();
-		$this->assertCount( 2, $this->http );
-		$this->assertSame( 'deactivate', $this->http_body( 1 )['event'] );
+		$this->assertSame( 'wprepo_insights_tracking_paused', $scheduler->send( 'optin' )->get_error_code() );
 
-		// So does an opt-out.
-		$this->consented();
+		$this->assertCount( 1, $this->http );
+		$this->assertSame( $options_before, $this->options, 'Paused calls write nothing.' );
+
+		// An opt-out is not a track: it still goes out.
 		$insights->opt_out();
-		$this->assertCount( 3, $this->http );
-		$this->assertStringEndsWith( '/optout', $this->http[2][0] );
+		$this->assertCount( 2, $this->http );
+		$this->assertStringEndsWith( '/optout', $this->http[1][0] );
+	}
+
+	/** @test */
+	public function the_pause_expires_after_seven_days_without_a_version_change() {
+		$this->consented();
+		$scheduler = $this->create_insights()->scheduler;
+
+		$this->options['my-plugin_insights_disabled_version'] = [
+			'version' => '2.0.0',
+			'since'   => time() - Scheduler::PAUSE_MAX + 60,
+		];
+
+		$scheduler->run_daily();
+		$this->assertSame( [], $this->http, 'Still paused a minute before the cap.' );
+
+		$this->options['my-plugin_insights_disabled_version']['since'] = time() - Scheduler::PAUSE_MAX;
+
+		$scheduler->run_daily();
+
+		$this->assertCount( 1, $this->http );
+		$this->assertSame( 'daily', $this->http_body()['event'] );
+		$this->assertArrayNotHasKey( 'my-plugin_insights_disabled_version', $this->options );
+	}
+
+	/** @test */
+	public function a_repeat_403_after_expiry_starts_a_new_pause() {
+		$this->consented();
+		$scheduler = $this->create_insights()->scheduler;
+
+		$this->options['my-plugin_insights_disabled_version'] = [ 'version' => '2.0.0', 'since' => 1 ];
+		$this->respond( 403, 'wprepo_insights_tracking_disabled' );
+
+		$scheduler->run_daily();
+
+		$this->assertCount( 1, $this->http );
+		$this->assertEqualsWithDelta( time(), $this->options['my-plugin_insights_disabled_version']['since'], 5 );
+		$this->assertTrue( $scheduler->is_tracking_disabled() );
 	}
 
 	/** @test */
@@ -152,7 +192,7 @@ class SchedulerBackoffTest extends TestCase {
 	/** @test */
 	public function a_version_change_without_an_upgrade_event_also_resumes_the_daily_track() {
 		$this->consented();
-		$this->options['my-plugin_insights_disabled_version'] = '1.9.0';
+		$this->options['my-plugin_insights_disabled_version'] = [ 'version' => '1.9.0', 'since' => time() ];
 
 		$this->create_insights()->scheduler->run_daily();
 

@@ -316,15 +316,17 @@ only reaches id-keyed V1 licenses); `meta` / `meta_callback` are now sent with I
 Options per plugin (`{slug}` = plugin directory): `{slug}_insights_consent`,
 `{slug}_insights_token`, `{slug}_insights_last_send`, `{slug}_insights_optout_pending` (a failed
 opt-out awaiting retry), `{slug}_insights_last_attempt` (time of the last track the server
-refused with a 4xx) and `{slug}_insights_disabled_version` (plugin version the server answered
-`403 wprepo_insights_tracking_disabled`), plus, for commercial plugins,
+refused with a 4xx) and `{slug}_insights_disabled_version` (the tracking pause after
+`403 wprepo_insights_tracking_disabled`: plugin version and start time), plus, for commercial plugins,
 `{slug}_insights_license_removed` (a removed license key not yet reported); cron hook
 `wprepo_insights_track_{slug}`.
 
 When the server refuses a track with any 4xx, the next daily track waits the same 20 hours as
 after a success, so the hourly license sync does not re-send a body the server will refuse
-again. After `403 wprepo_insights_tracking_disabled` nothing but `deactivate` (and an opt-out)
-is sent until the installed plugin version changes. Network errors and 5xx are retried on
+again. After `403 wprepo_insights_tracking_disabled` no track at all is sent — `deactivate`
+included, since the server refuses it too — until the installed plugin version changes or
+7 days pass (in case tracking is switched back on without a release). An opt-out still goes
+out. Network errors and 5xx are retried on
 the next run. Deactivation clears the cron
 (on every site of the network when network-deactivated) and keeps the options, so a
 re-activation does not ask again.

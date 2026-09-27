@@ -67,6 +67,18 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 		const OPTOUT_GIVE_UP = 604800;
 
 		/**
+		 * Longest a `403 wprepo_insights_tracking_disabled` pause lasts, in
+		 * seconds (7 days). The pause lifts earlier when the plugin version
+		 * changes; this cap lets an install resume if tracking is switched
+		 * back on server-side without a plugin release.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @var int
+		 */
+		const PAUSE_MAX = 604800;
+
+		/**
 		 * Plugin basename (`dir/file.php`).
 		 *
 		 * @since 4.0.0
@@ -171,9 +183,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 		}
 
 		/**
-		 * Option key holding the plugin version the server answered with
-		 * `403 wprepo_insights_tracking_disabled`. While the installed version
-		 * is still that one, tracks (except `deactivate`) are not sent.
+		 * Option key holding the tracking pause after `403
+		 * wprepo_insights_tracking_disabled`: `[ 'version' => …, 'since' => … ]`.
+		 * While it holds, no track is sent (opt-out is a separate call and is
+		 * never paused).
 		 *
 		 * @since 4.0.0
 		 *
@@ -184,24 +197,27 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 		}
 
 		/**
-		 * Whether the server switched tracking off for the installed plugin
-		 * version. The contract says to stop sending until the plugin
-		 * updates, so a different installed version clears the flag.
+		 * Whether tracking is paused because the server switched it off. The
+		 * contract says to stop sending until the plugin updates, so the pause
+		 * lifts when the installed version changes — or after PAUSE_MAX, in
+		 * case tracking is switched back on without a release.
 		 *
 		 * @since 4.0.0
 		 *
 		 * @return bool
 		 */
 		public function is_tracking_disabled() {
-			$version = (string) get_option( $this->get_disabled_version_key(), '' );
+			$pause = get_option( $this->get_disabled_version_key(), false );
 
-			if ( '' === $version ) {
+			if ( false === $pause ) {
 				return false;
 			}
 
-			$header = $this->collector->get_plugin_header();
+			$header  = $this->collector->get_plugin_header();
+			$version = \is_array( $pause ) && isset( $pause['version'] ) ? (string) $pause['version'] : '';
+			$since   = \is_array( $pause ) && isset( $pause['since'] ) ? (int) $pause['since'] : 0;
 
-			if ( $header['Version'] !== $version ) {
+			if ( $header['Version'] !== $version || ( time() - $since ) >= self::PAUSE_MAX ) {
 				delete_option( $this->get_disabled_version_key() );
 				return false;
 			}
@@ -342,9 +358,11 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 		 * - 4xx: stores the attempt time; run_daily() then waits
 		 *   MIN_INTERVAL, as after a success — the same body would be refused
 		 *   again.
-		 * - `403 wprepo_insights_tracking_disabled`: also remembers the
-		 *   installed version; nothing but `deactivate` is sent again until the
-		 *   plugin version changes.
+		 * - `403 wprepo_insights_tracking_disabled`: also pauses tracking — no
+		 *   track at all, `deactivate` included (the server's 403 check runs
+		 *   first, so it could not record one anyway) — until the plugin
+		 *   version changes or PAUSE_MAX has passed. Opt-out is not a track
+		 *   and still goes out.
 		 * - Network errors and 5xx: nothing stored, so the next run retries.
 		 *
 		 * @since 4.0.0
@@ -357,12 +375,12 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 				return new WP_Error( 'wprepo_insights_no_consent', 'Insights consent not granted; nothing sent.' );
 			}
 
-			// `deactivate` still goes out: it is the one event the server
-			// needs to mark the install inactive.
-			if ( 'deactivate' !== $event && $this->is_tracking_disabled() ) {
+			// Paused: nothing is sent and nothing is written, so a paused
+			// install costs one option read per attempt.
+			if ( $this->is_tracking_disabled() ) {
 				return new WP_Error(
 					'wprepo_insights_tracking_paused',
-					'The server switched tracking off for this plugin version; nothing sent until the plugin updates.'
+					'The server switched tracking off for this plugin version; nothing sent until the plugin updates or the pause expires.'
 				);
 			}
 
@@ -384,7 +402,14 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 
 				if ( 403 === $status && 'wprepo_insights_tracking_disabled' === $result->get_error_code() ) {
 					$header = $this->collector->get_plugin_header();
-					update_option( $this->get_disabled_version_key(), $header['Version'], false );
+					update_option(
+						$this->get_disabled_version_key(),
+						[
+							'version' => $header['Version'],
+							'since'   => time(),
+						],
+						false
+					);
 				}
 			}
 

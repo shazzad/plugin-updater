@@ -45,8 +45,8 @@ number matches the server API it calls (`V4` ↔ `wp-repo/v4`); V1 and V2 stay o
   nothing could be sent (no valid uid, no or a v3 `api_url`)
 - New: after a track refused with a 4xx, the next daily track waits 20 hours
   (`{slug}_insights_last_attempt`), so the hourly license sync no longer re-sends a refused
-  body every hour. After `403 wprepo_insights_tracking_disabled` only `deactivate` (and opt-out)
-  is sent until the plugin version changes (`{slug}_insights_disabled_version`). Network errors
+  body every hour. After `403 wprepo_insights_tracking_disabled` no track is sent (opt-out
+  still is) until the plugin version changes or 7 days pass (`{slug}_insights_disabled_version`). Network errors
   and 5xx still retry on the next run. `Insights::uninstall()` removes both options
 - New (commercial): when a stored license key is explicitly removed (license page saved empty),
   tracks send `"license": ""` until one is accepted (`{slug}_insights_license_removed`); the
