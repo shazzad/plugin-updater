@@ -43,11 +43,32 @@ class InsightsConfigTest extends TestCase {
 	}
 
 	/** @test */
-	public function product_id_is_used_when_no_uid() {
-		$insights = $this->create_insights( [ 'product_uid' => '' ] );
+	public function a_missing_uid_notifies_draws_no_notice_and_never_falls_back_to_the_id() {
+		$insights = $this->create_insights( [ 'product_uid' => '', 'product_id' => '12' ] );
 
-		$this->assertSame( '12', $insights->get_product_key() );
-		$this->assertSame( [], $this->doing_it_wrong );
+		$this->assertCount( 1, $this->doing_it_wrong );
+		$this->assertStringContainsString( 'Missing required config key "product_uid"', $this->doing_it_wrong[0] );
+		$this->assertSame( '12', $insights->product_id );
+		$this->assertSame( '', $insights->get_product_key() );
+
+		// Nothing could be sent, so consent is never asked for.
+		$this->assertNull( $insights->notice );
+		$this->assertArrayNotHasKey( 'admin_notices', $this->hooks );
+
+		// The rest is still wired, so plugin code calling it cannot fatal.
+		$this->assertNotNull( $insights->client );
+		$this->assertNotNull( $insights->scheduler );
+	}
+
+	/** @test */
+	public function a_missing_uid_key_notifies_too() {
+		$config = $this->config();
+		unset( $config['product_uid'] );
+
+		new Insights( $config );
+
+		$this->assertCount( 1, $this->doing_it_wrong );
+		$this->assertStringContainsString( 'Missing required config key "product_uid"', $this->doing_it_wrong[0] );
 	}
 
 	/** @test */
@@ -81,7 +102,8 @@ class InsightsConfigTest extends TestCase {
 		$this->assertInstanceOf( Insights::class, $insights );
 		$this->assertContains( 'Missing required config key "api_url".', $this->doing_it_wrong );
 		$this->assertContains( 'Missing required config key "file".', $this->doing_it_wrong );
-		$this->assertContains( 'Config needs "product_uid" or "product_id".', $this->doing_it_wrong );
+		$this->assertCount( 3, $this->doing_it_wrong );
+		$this->assertStringContainsString( 'Missing required config key "product_uid"', $this->doing_it_wrong[2] );
 	}
 
 	/** @test */

@@ -49,10 +49,12 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		public $product_id;
 
 		/**
-		 * Opaque product uid (`prod_…`) on the remote server.
+		 * Opaque product uid (`prod_…`) on the remote server. Required: it is
+		 * the only identifier `wp-repo/v4` accepts in API URLs. Without it no
+		 * update, license or Insights call is made.
 		 *
-		 * When set, API URLs and license storage keys use the uid instead
-		 * of the numeric product id.
+		 * License storage keys use it too (the numeric id only reaches the
+		 * legacy id-based keys; see License\Store).
 		 *
 		 * @var string
 		 */
@@ -257,9 +259,11 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 *                                    Serves updates, licensing and Insights. Required.
 		 *     @type string      $file        Plugin main file: __FILE__ or its plugin_basename() form
 		 *                                    ("my-plugin/my-plugin.php") — both accepted. Required.
-		 *     @type string      $product_uid Opaque `prod_…` uid on the remote server. Preferred identity.
-		 *     @type string      $product_id  Numeric product id on the remote server. Optional legacy identity;
-		 *                                    required to reach license options stored under id-based keys.
+		 *     @type string      $product_uid Opaque `prod_…` uid on the remote server. Required: the API
+		 *                                    URLs (`{api_url}/plugins/{uid}/…`) are built from it alone.
+		 *     @type string      $product_id  Numeric product id on the remote server. Optional, never sent;
+		 *                                    required to reach license options stored under id-based keys
+		 *                                    (plugins that shipped on the V1 library).
 		 *     @type bool        $license     Whether license checks are enabled. Default false.
 		 *     @type array|false $menu        License page settings (`parent`, `label`, `priority`), or
 		 *                                    false to disable the page. Default empty array (page shown
@@ -269,9 +273,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		 *                                    setMetaCallback().
 		 * }
 		 *
-		 * Unrecognized config keys and missing required keys (`api_url`, `file`) trigger a
-		 * `_doing_it_wrong()` notice in debug mode; construction always proceeds — a
-		 * misconfigured updater must never fatal the plugin embedding it. An `api_url` on
+		 * Unrecognized config keys and missing required keys (`api_url`, `file`, `product_uid`)
+		 * trigger a `_doing_it_wrong()` notice in debug mode; construction always proceeds — a
+		 * misconfigured updater must never fatal the plugin embedding it. Without a
+		 * `product_uid` no API call is made and Insights stays off. An `api_url` on
 		 * `wp-repo/v3`, which has no Insights routes, draws a notice too.
 		 *
 		 * @since 4.0.0
@@ -325,8 +330,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 			$this->updater = new Updater( $this );
 			$this->tracker = new Tracker( $this );
 
-			// wp-repo/v3 has no Insights routes; tracking against it would only 404.
-			if ( \is_string( $this->api_url ) && '' !== $this->api_url && ! self::is_v3_api_url( $this->api_url ) ) {
+			if ( $this->can_track() ) {
 				$this->setup_insights();
 			}
 
@@ -380,6 +384,16 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 				}
 			}
 
+			if ( empty( $config['product_uid'] ) ) {
+				_doing_it_wrong(
+					__METHOD__,
+					'Missing required config key "product_uid". The wp-repo/v4 API addresses a plugin by its'
+					. ' "prod_…" uid only, so no update, license or Insights call is made without it.'
+					. ' "product_id" alone is not enough.',
+					'4.0.0'
+				);
+			}
+
 			if ( ! empty( $config['license'] ) && ! empty( $config['product_uid'] ) && empty( $config['product_id'] ) ) {
 				_doing_it_wrong(
 					__METHOD__,
@@ -408,6 +422,22 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 					'4.0.0'
 				);
 			}
+		}
+
+		/**
+		 * Whether the Insights parts can be built: a uid to address the
+		 * plugin, and an `api_url` that is not wp-repo/v3 (which has no
+		 * Insights routes; tracking against it would only 404).
+		 *
+		 * @since 4.0.0
+		 *
+		 * @return bool
+		 */
+		private function can_track() {
+			return '' !== (string) $this->product_uid
+				&& \is_string( $this->api_url )
+				&& '' !== $this->api_url
+				&& ! self::is_v3_api_url( $this->api_url );
 		}
 
 		/**
@@ -530,6 +560,13 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		public function setProductUid( $product_uid ) {
 			$this->product_uid = $product_uid;
 
+			// Insights was skipped at construction when the uid was missing.
+			if ( $this->insights_client ) {
+				$this->insights_client->product_key = (string) $product_uid;
+			} elseif ( $this->can_track() ) {
+				$this->setup_insights();
+			}
+
 			$this->store->maybe_migrate_license_storage();
 
 			return $this;
@@ -566,14 +603,18 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		}
 
 		/**
-		 * Resolves the product identifier used in API URLs.
+		 * Resolves the plugin identifier used in API URLs
+		 * (`{api_url}/plugins/{uid}/…`).
+		 *
+		 * The uid only: `wp-repo/v4` answers a numeric id with
+		 * `404 rest_no_route`, so there is no fallback to `product_id`.
 		 *
 		 * @since 4.0.0
 		 *
-		 * @return string The product uid when set, otherwise the numeric id.
+		 * @return string The product uid, or '' when none is configured.
 		 */
 		public function get_api_product_key() {
-			return $this->product_uid ? $this->product_uid : $this->product_id;
+			return (string) $this->product_uid;
 		}
 
 		/**

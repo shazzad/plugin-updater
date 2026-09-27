@@ -95,7 +95,7 @@ class OptoutPendingTest extends TestCase {
 		$insights->scheduler->maybe_schedule(); // the admin_init callback.
 
 		$this->assertCount( 1, $this->http );
-		$this->assertStringEndsWith( '/products/prod_abc/optout', $this->http[0][0] );
+		$this->assertStringEndsWith( '/plugins/prod_abc/optout', $this->http[0][0] );
 		$this->assertSame(
 			[ 'site_url' => 'https://example.org', 'token' => 'abcdefghijklmnopqrstuvwxyz012345' ],
 			$this->http_body()

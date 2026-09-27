@@ -22,14 +22,14 @@ class CollectorTest extends TestCase {
 		$data = $this->collector()->collect( 'daily' );
 
 		$this->assertSame(
-			[ 'event', 'mode', 'token', 'product_version', 'product_status', 'site', 'admin', 'wp', 'server', 'users', 'plugins' ],
+			[ 'event', 'mode', 'token', 'plugin_version', 'plugin_status', 'site', 'admin', 'wp', 'server', 'users', 'plugins' ],
 			array_keys( $data )
 		);
 		$this->assertSame( 'daily', $data['event'] );
 		$this->assertSame( 'consent', $data['mode'] );
 		$this->assertSame( 'tok123', $data['token'] );
-		$this->assertSame( '2.0.0', $data['product_version'] );
-		$this->assertSame( 'active', $data['product_status'] );
+		$this->assertSame( '2.0.0', $data['plugin_version'] );
+		$this->assertSame( 'active', $data['plugin_status'] );
 
 		$this->assertSame(
 			[
@@ -159,7 +159,7 @@ class CollectorTest extends TestCase {
 		$collector                 = $this->collector();
 		$collector->product_status = 'inactive';
 
-		$this->assertSame( 'inactive', $collector->collect()['product_status'] );
+		$this->assertSame( 'inactive', $collector->collect()['plugin_status'] );
 	}
 
 	/**

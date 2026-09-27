@@ -62,6 +62,11 @@ abstract class IntegrationTestCase extends PHPUnitTestCase {
 	/**
 	 * Create a V4 Integration instance with all required WP function stubs.
 	 *
+	 * The default config is id-only on purpose: it is the V1-shaped identity
+	 * whose id-keyed storage these carried-over tests exercise. It draws the
+	 * missing-`product_uid` notice (collected in $doing_it_wrong) and makes
+	 * no API call; tests that reach the API pass a `product_uid`.
+	 *
 	 * @param array $overrides Override default constructor config.
 	 * @return Integration
 	 */

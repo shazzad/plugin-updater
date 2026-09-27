@@ -63,7 +63,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 		public $slug;
 
 		/**
-		 * Product uid (`prod_…`).
+		 * Product uid (`prod_…`). Required; the API URLs are built from it.
 		 *
 		 * @since 4.0.0
 		 *
@@ -72,7 +72,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 		public $product_uid = '';
 
 		/**
-		 * Numeric product id.
+		 * Numeric product id. Informational only: never sent.
 		 *
 		 * @since 4.0.0
 		 *
@@ -135,7 +135,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 		public $scheduler;
 
 		/**
-		 * Consent notice; null when `notice` is false.
+		 * Consent notice; null when `notice` is false or no `product_uid` is set.
 		 *
 		 * @since 4.0.0
 		 *
@@ -154,8 +154,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 		 *     @type string         $api_url       Repo API base, e.g.
 		 *                                         `https://w4dev.com/wp-json/wp-repo/v4`. Required.
 		 *     @type string         $file          Plugin main file: __FILE__ or its plugin_basename() form. Required.
-		 *     @type string         $product_uid   `prod_…` uid on the repo server. Preferred.
-		 *     @type string         $product_id    Numeric product id. One of uid/id is required.
+		 *     @type string         $product_uid   `prod_…` uid on the repo server. Required: without it
+		 *                                         nothing is sent and no consent notice is drawn.
+		 *     @type string         $product_id    Numeric product id. Optional, never sent.
 		 *     @type string         $name          Name shown in the notice. Default: plugin header Name.
 		 *     @type string         $privacy_url   "Learn more" link in the notice. Omitted when empty.
 		 *     @type array|false    $notice        `screens` (screen ids; default every admin screen),
@@ -202,7 +203,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 
 			$notice = \array_key_exists( 'notice', $config ) ? $config['notice'] : [];
 
-			if ( false !== $notice ) {
+			// No uid, nothing can be sent: asking for consent would be a lie.
+			if ( false !== $notice && '' !== $this->product_uid ) {
 				$this->notice = new Notice( $this, \is_array( $notice ) ? $notice : [] );
 			}
 		}
@@ -232,8 +234,13 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 				}
 			}
 
-			if ( empty( $config['product_uid'] ) && empty( $config['product_id'] ) ) {
-				_doing_it_wrong( __METHOD__, 'Config needs "product_uid" or "product_id".', '4.0.0' );
+			if ( empty( $config['product_uid'] ) ) {
+				_doing_it_wrong(
+					__METHOD__,
+					'Missing required config key "product_uid". The wp-repo/v4 API addresses a plugin by its'
+					. ' "prod_…" uid only, so nothing is sent and no consent notice is shown without it.',
+					'4.0.0'
+				);
 			}
 
 			if ( isset( $config['meta_callback'] ) && ! \is_callable( $config['meta_callback'] ) ) {
@@ -274,14 +281,16 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 		}
 
 		/**
-		 * Product key used in API URLs: the uid when set, otherwise the id.
+		 * Plugin key used in API URLs (`{api_url}/plugins/{uid}/…`): the uid
+		 * only. `wp-repo/v4` answers a numeric id with `404 rest_no_route`,
+		 * so there is no fallback to `product_id`.
 		 *
 		 * @since 4.0.0
 		 *
-		 * @return string
+		 * @return string The uid, or '' when none is configured.
 		 */
 		public function get_product_key() {
-			return $this->product_uid ? $this->product_uid : $this->product_id;
+			return $this->product_uid;
 		}
 
 		/**

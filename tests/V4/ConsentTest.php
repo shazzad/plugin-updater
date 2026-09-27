@@ -35,7 +35,7 @@ class ConsentTest extends TestCase {
 		$this->assertSame( 'abcdefghijklmnopqrstuvwxyz012345', $this->options['my-plugin_insights_token'] );
 		$this->assertSame( 'daily', $this->cron['wprepo_insights_track_my-plugin'] );
 		$this->assertCount( 1, $this->http );
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/products/prod_abc/track', $this->http[0][0] );
+		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/plugins/prod_abc/track', $this->http[0][0] );
 		$this->assertSame( 'optin', $this->http_body()['event'] );
 		$this->assertSame( 'abcdefghijklmnopqrstuvwxyz012345', $this->http_body()['token'] );
 		$this->assertIsInt( $this->options['my-plugin_insights_last_send'] );
@@ -62,7 +62,7 @@ class ConsentTest extends TestCase {
 		$this->assertSame( 'no', $insights->get_consent() );
 		$this->assertArrayNotHasKey( 'wprepo_insights_track_my-plugin', $this->cron );
 		$this->assertCount( 1, $this->http );
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/products/prod_abc/optout', $this->http[0][0] );
+		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/plugins/prod_abc/optout', $this->http[0][0] );
 		$this->assertSame(
 			[ 'site_url' => 'https://example.org', 'token' => 'abcdefghijklmnopqrstuvwxyz012345' ],
 			$this->http_body()

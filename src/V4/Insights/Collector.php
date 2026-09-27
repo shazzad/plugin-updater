@@ -54,7 +54,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 		public $consent;
 
 		/**
-		 * Product status reported with the next payload (`active`/`inactive`).
+		 * Plugin status reported with the next payload as `plugin_status`
+		 * (`active`/`inactive`).
 		 * The Scheduler flips it to `inactive` on deactivation.
 		 *
 		 * @since 4.0.0
@@ -139,17 +140,17 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 			$token = $this->consent->is_granted() ? $this->consent->ensure_token() : $this->consent->get_token();
 
 			$data = [
-				'event'           => (string) $event,
-				'mode'            => $this->consent->mode,
-				'token'           => $token,
-				'product_version' => $plugin['Version'],
-				'product_status'  => $this->product_status,
-				'site'            => $this->get_site_data(),
-				'admin'           => $this->get_admin_data(),
-				'wp'              => $this->get_wp_data(),
-				'server'          => $this->get_server_data(),
-				'users'           => $this->get_users_data(),
-				'plugins'         => $this->get_plugins_data(),
+				'event'          => (string) $event,
+				'mode'           => $this->consent->mode,
+				'token'          => $token,
+				'plugin_version' => $plugin['Version'],
+				'plugin_status'  => $this->product_status,
+				'site'           => $this->get_site_data(),
+				'admin'          => $this->get_admin_data(),
+				'wp'             => $this->get_wp_data(),
+				'server'         => $this->get_server_data(),
+				'users'          => $this->get_users_data(),
+				'plugins'        => $this->get_plugins_data(),
 			];
 
 			$license = $this->get_license();

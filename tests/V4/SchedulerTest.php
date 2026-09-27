@@ -90,7 +90,7 @@ class SchedulerTest extends TestCase {
 		$this->assertSame( 'daily', $this->cron['wprepo_insights_track_my-plugin'] );
 		$this->assertCount( 1, $this->http );
 		$this->assertSame( 'activate', $this->http_body()['event'] );
-		$this->assertSame( 'active', $this->http_body()['product_status'] );
+		$this->assertSame( 'active', $this->http_body()['plugin_status'] );
 	}
 
 	/** @test */
@@ -104,7 +104,7 @@ class SchedulerTest extends TestCase {
 		$this->assertSame( [], $this->cron );
 		$this->assertCount( 1, $this->http );
 		$this->assertSame( 'deactivate', $this->http_body()['event'] );
-		$this->assertSame( 'inactive', $this->http_body()['product_status'] );
+		$this->assertSame( 'inactive', $this->http_body()['plugin_status'] );
 		$this->assertSame( 'yes', $this->options['my-plugin_insights_consent'] );
 	}
 
@@ -153,7 +153,7 @@ class SchedulerTest extends TestCase {
 		$insights->client->track( 'daily' );
 
 		list( $url, $args ) = $this->http[0];
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/products/prod_abc/track', $url );
+		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/plugins/prod_abc/track', $url );
 		$this->assertSame( 5, $args['timeout'] );
 		$this->assertSame( 'application/json', $args['headers']['Content-Type'] );
 		$this->assertIsString( $args['body'] );
@@ -161,13 +161,35 @@ class SchedulerTest extends TestCase {
 	}
 
 	/** @test */
-	public function track_uses_product_id_when_no_uid() {
+	public function nothing_is_sent_without_a_uid_even_with_a_numeric_id() {
+		$this->consented();
+		$insights = $this->create_insights( [ 'product_uid' => '', 'product_id' => '12' ] );
+
+		$this->assertSame( '', $insights->get_product_key() );
+
+		$result = $insights->client->track( 'daily' );
+		$this->assertSame( 'wprepo_insights_no_product_uid', $result->get_error_code() );
+
+		$result = $insights->client->optout();
+		$this->assertSame( 'wprepo_insights_no_product_uid', $result->get_error_code() );
+
+		$insights->scheduler->product_activated();
+		$insights->scheduler->product_deactivated();
+
+		$this->assertSame( [], $this->http );
+	}
+
+	/** @test */
+	public function a_missing_uid_is_not_a_retryable_optout_failure() {
 		$this->consented();
 		$insights = $this->create_insights( [ 'product_uid' => '' ] );
 
-		$insights->client->track( 'daily' );
+		$result = $insights->opt_out();
 
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/products/12/track', $this->http[0][0] );
+		$this->assertSame( 'wprepo_insights_no_product_uid', $result->get_error_code() );
+		$this->assertFalse( Scheduler::optout_should_retry( $result ) );
+		$this->assertArrayNotHasKey( 'my-plugin_insights_optout_pending', $this->options );
+		$this->assertSame( [], $this->http );
 	}
 
 	/** @test */
@@ -175,10 +197,11 @@ class SchedulerTest extends TestCase {
 		$this->consented();
 		$insights = $this->create_insights();
 
-		$this->http_response = [ 'response' => [ 'code' => 403 ], 'body' => '{"code":"tracking_disabled","message":"Off"}' ];
+		$this->http_response = [ 'response' => [ 'code' => 403 ], 'body' => '{"code":"wprepo_insights_tracking_disabled","message":"Off","data":{"status":403}}' ];
 		$result              = $insights->client->track( 'daily' );
 		$this->assertTrue( is_wp_error( $result ) );
-		$this->assertSame( 'tracking_disabled', $result->get_error_code() );
+		$this->assertSame( 'wprepo_insights_tracking_disabled', $result->get_error_code() );
+		$this->assertSame( [ 'status' => 403 ], $result->get_error_data() );
 
 		$this->http_response = new \WP_Error( 'http_request_failed', 'timeout' );
 		$this->assertSame( 'http_request_failed', $insights->client->track( 'daily' )->get_error_code() );
@@ -216,7 +239,7 @@ class SchedulerTest extends TestCase {
 		$scheduler->product_activated();
 
 		$this->assertSame( 'daily', $this->cron['wprepo_insights_track_my-plugin'] );
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/products/prod_abc/track', $this->http[0][0] );
+		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/plugins/prod_abc/track', $this->http[0][0] );
 		$this->assertSame( 'commercial', $this->http_body()['mode'] );
 		$this->assertSame( 'LIC-1', $this->http_body()['license'] );
 		$this->assertSame( 'activate', $this->http_body()['event'] );

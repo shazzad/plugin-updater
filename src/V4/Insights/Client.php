@@ -50,7 +50,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		public $api_url;
 
 		/**
-		 * Product key in the URL: the `prod_…` uid, or the numeric id.
+		 * Plugin key in the URL: the `prod_…` uid (the only identifier
+		 * `wp-repo/v4` accepts). Empty = nothing is ever sent.
 		 *
 		 * @since 4.0.0
 		 *
@@ -82,7 +83,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		 * @since 4.0.0
 		 *
 		 * @param string    $api_url     Insights API base URL.
-		 * @param string    $product_key Product uid or id.
+		 * @param string    $product_key Product uid (`prod_…`).
 		 * @param Collector $collector   Payload builder.
 		 * @param Consent   $consent     Consent state.
 		 */
@@ -141,7 +142,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		}
 
 		/**
-		 * Full URL of a product route.
+		 * Full URL of a plugin route.
 		 *
 		 * @since 4.0.0
 		 *
@@ -149,7 +150,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		 * @return string
 		 */
 		public function get_url( $route ) {
-			return "{$this->api_url}/products/{$this->product_key}/{$route}";
+			return "{$this->api_url}/plugins/{$this->product_key}/{$route}";
 		}
 
 		/**
@@ -162,6 +163,11 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		 * @return array|WP_Error
 		 */
 		protected function post( $route, array $body ) {
+			// Without a uid the route would be a 404 (`rest_no_route`).
+			if ( '' === $this->product_key ) {
+				return new WP_Error( 'wprepo_insights_no_product_uid', 'No product_uid configured; nothing sent.' );
+			}
+
 			$response = wp_remote_post(
 				$this->get_url( $route ),
 				[

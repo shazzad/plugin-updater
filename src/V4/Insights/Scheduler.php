@@ -267,7 +267,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 
 		/**
 		 * Whether an optout result is a failure worth retrying: any WP_Error
-		 * except a missing token, which no retry can fix.
+		 * except a missing token or a missing product uid, which no retry can
+		 * fix.
 		 *
 		 * @since 4.0.0
 		 *
@@ -275,7 +276,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 		 * @return bool
 		 */
 		public static function optout_should_retry( $result ) {
-			return is_wp_error( $result ) && 'wprepo_insights_no_token' !== $result->get_error_code();
+			return is_wp_error( $result )
+				&& ! \in_array( $result->get_error_code(), [ 'wprepo_insights_no_token', 'wprepo_insights_no_product_uid' ], true );
 		}
 
 		/**

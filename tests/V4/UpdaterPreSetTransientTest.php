@@ -2,10 +2,18 @@
 namespace Shazzad\PluginUpdater\Tests\V4;
 
 use Brain\Monkey\Functions;
+use Shazzad\PluginUpdater\V4\Integration;
 use Shazzad\PluginUpdater\V4\Updater;
 use WP_Error;
 
 class UpdaterPreSetTransientTest extends IntegrationTestCase {
+
+	/**
+	 * The update check needs a uid: without one the client sends nothing.
+	 */
+	protected function create_integration( array $overrides = [] ): Integration {
+		return parent::create_integration( array_merge( [ 'product_uid' => 'prod_testuid' ], $overrides ) );
+	}
 
 	/**
 	 * Helper: stub the WP functions used by Client::request() inside pre_set_transient().
@@ -208,6 +216,23 @@ class UpdaterPreSetTransientTest extends IntegrationTestCase {
 		$transient = $this->make_transient();
 
 		$result = $updater->pre_set_transient( $transient );
+
+		$this->assertEmpty( $result->response );
+		$this->assertEmpty( $result->no_update );
+	}
+
+	/** @test */
+	public function does_nothing_and_sends_nothing_without_a_uid() {
+		$integration = $this->create_integration( [ 'product_uid' => '' ] );
+		$this->stub_api_dependencies();
+
+		Functions\when( 'get_site_transient' )->justReturn( false );
+		Functions\expect( 'wp_remote_request' )->never();
+		Functions\expect( 'set_site_transient' )->never();
+
+		$transient = $this->make_transient();
+
+		$result = $integration->updater->pre_set_transient( $transient );
 
 		$this->assertEmpty( $result->response );
 		$this->assertEmpty( $result->no_update );

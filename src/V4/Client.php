@@ -154,7 +154,18 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 		 * @return array|WP_Error Response data or WP_Error on failure.
 		 */
 		private function request( $method, $args = [], $timeout = 5 ) {
-			$request_url = "{$this->integration->api_url}/products/{$this->integration->get_api_product_key()}/$method";
+			$uid = (string) $this->integration->get_api_product_key();
+
+			// wp-repo/v4 addresses a plugin by its `prod_…` uid only; any
+			// other URL is a 404, so don't send one.
+			if ( '' === $uid ) {
+				return new WP_Error(
+					'wprepo_no_product_uid',
+					'No product_uid configured; nothing sent.'
+				);
+			}
+
+			$request_url = "{$this->integration->api_url}/plugins/{$uid}/$method";
 
 			if ( ! empty( $args ) ) {
 				$request_url = add_query_arg( $args, $request_url );

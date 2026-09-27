@@ -173,8 +173,10 @@ class IntegrationConfigTest extends IntegrationTestCase {
 
 		$this->create_integration( [ 'product-uid' => 'prod_typo' ] );
 
-		$this->assertCount( 1, $notices );
+		// The typo is flagged, and so is the uid it failed to set.
+		$this->assertCount( 2, $notices );
 		$this->assertStringContainsString( 'product-uid', $notices[0] );
+		$this->assertStringContainsString( 'Missing required config key "product_uid"', $notices[1] );
 	}
 
 	/** @test */
@@ -191,9 +193,10 @@ class IntegrationConfigTest extends IntegrationTestCase {
 
 		$integration = new \Shazzad\PluginUpdater\V4\Integration( [] );
 
-		$this->assertCount( 2, $notices );
+		$this->assertCount( 3, $notices );
 		$this->assertStringContainsString( 'api_url', $notices[0] );
 		$this->assertStringContainsString( 'file', $notices[1] );
+		$this->assertStringContainsString( 'Missing required config key "product_uid"', $notices[2] );
 		// Construction proceeded despite the notices.
 		$this->assertInstanceOf( \Shazzad\PluginUpdater\V4\Integration::class, $integration );
 	}
@@ -212,6 +215,27 @@ class IntegrationConfigTest extends IntegrationTestCase {
 
 		// The expectation above is the assertion.
 		$this->assertTrue( true );
+	}
+
+	/** @test */
+	public function missing_uid_triggers_doing_it_wrong_even_with_a_numeric_id() {
+		$integration = $this->create_integration( [ 'product_id' => '42' ] );
+
+		$this->assertCount( 1, $this->doing_it_wrong );
+		$this->assertStringContainsString( 'Missing required config key "product_uid"', $this->doing_it_wrong[0] );
+		$this->assertStringContainsString( 'prod_', $this->doing_it_wrong[0] );
+		// Construction proceeded; the id keeps its legacy storage role.
+		$this->assertSame( '42', $integration->product_id );
+		$this->assertSame( 'my-plugin42_code', $integration->get_license_code_key() );
+		$this->assertSame( '', $integration->get_api_product_key() );
+	}
+
+	/** @test */
+	public function empty_uid_counts_as_missing() {
+		$this->create_integration( [ 'product_uid' => '' ] );
+
+		$this->assertCount( 1, $this->doing_it_wrong );
+		$this->assertStringContainsString( 'Missing required config key "product_uid"', $this->doing_it_wrong[0] );
 	}
 
 	/** @test */
@@ -295,6 +319,7 @@ class IntegrationConfigTest extends IntegrationTestCase {
 		} );
 
 		$integration = $this->create_integration( [
+			'product_uid'   => 'prod_testuid',
 			'meta_callback' => 'not_a_real_function_xyz',
 		] );
 

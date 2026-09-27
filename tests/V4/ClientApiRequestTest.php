@@ -2,9 +2,18 @@
 namespace Shazzad\PluginUpdater\Tests\V4;
 
 use Brain\Monkey\Functions;
+use Shazzad\PluginUpdater\V4\Integration;
 use WP_Error;
 
 class ClientApiRequestTest extends IntegrationTestCase {
+
+	/**
+	 * Every request here needs a uid: wp-repo/v4 addresses a plugin by its
+	 * `prod_…` uid only, and the client sends nothing without one.
+	 */
+	protected function create_integration( array $overrides = [] ): Integration {
+		return parent::create_integration( array_merge( [ 'product_uid' => 'prod_testuid' ], $overrides ) );
+	}
 
 	/**
 	 * Stub the common WP functions used by Client::request() and updates() cache.
@@ -122,13 +131,14 @@ class ClientApiRequestTest extends IntegrationTestCase {
 
 	/** @test */
 	public function license_included_in_updates_when_enabled() {
+		// Read by the construction-time migration check, then by updates().
+		Functions\expect( 'get_option' )
+			->twice()
+			->with( 'prod_testuid_code' )
+			->andReturn( 'MY-LICENSE-KEY' );
+
 		$integration = $this->create_integration( [ 'license' => true ] );
 		$this->stub_api_dependencies();
-
-		Functions\expect( 'get_option' )
-			->once()
-			->with( 'my-plugin42_code' )
-			->andReturn( 'MY-LICENSE-KEY' );
 
 		$captured_url = null;
 		$fixture      = $this->load_fixture_raw( 'ping-success.json' );
@@ -151,6 +161,9 @@ class ClientApiRequestTest extends IntegrationTestCase {
 
 	/** @test */
 	public function explicit_license_overrides_stored_value() {
+		// Construction-time migration check: a uid-keyed license is stored.
+		Functions\when( 'get_option' )->justReturn( 'stored-key' );
+
 		$integration = $this->create_integration( [ 'license' => true ] );
 		$this->stub_api_dependencies();
 
@@ -181,7 +194,7 @@ class ClientApiRequestTest extends IntegrationTestCase {
 
 		Functions\expect( 'get_option' )
 			->once()
-			->with( 'my-plugin42_code' )
+			->with( 'prod_testuid_code' )
 			->andReturn( false );
 
 		$fixture = $this->load_fixture_raw( 'check-license-success.json' );
@@ -458,9 +471,73 @@ class ClientApiRequestTest extends IntegrationTestCase {
 		$this->assertArrayHasKey( 'details', $result );
 	}
 
-	/** @test */
-	public function check_license_url_uses_uid_when_set() {
+	/**
+	 * @test
+	 * @dataProvider provide_routes
+	 */
+	public function requests_go_to_the_v4_plugins_route_for_the_uid( string $method, string $route ) {
 		$integration = $this->create_integration();
+		$this->stub_http_dependencies();
+
+		$captured_url = null;
+
+		Functions\expect( 'wp_remote_request' )
+			->once()
+			->with( \Mockery::on( function ( $url ) use ( &$captured_url ) {
+				$captured_url = $url;
+				return true;
+			} ), \Mockery::any() )
+			->andReturn( [] );
+
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( '{"ok":true}' );
+
+		if ( 'check_license' === $method ) {
+			$integration->client->check_license( 'ABC-123' );
+		} else {
+			$integration->client->$method( 0 );
+		}
+
+		$this->assertStringStartsWith(
+			"https://api.example.com/wp-json/wp-repo/v4/plugins/prod_testuid/{$route}",
+			$captured_url
+		);
+		$this->assertStringNotContainsString( '/products/', $captured_url );
+	}
+
+	public function provide_routes(): array {
+		return [
+			'updates'       => [ 'updates', 'updates' ],
+			'details'       => [ 'details', 'details' ],
+			'check_license' => [ 'check_license', 'check_license?license=ABC-123' ],
+		];
+	}
+
+	/** @test */
+	public function no_request_is_made_without_a_uid_even_with_a_numeric_id() {
+		$integration = $this->create_integration( [ 'product_uid' => '' ] );
+		$this->stub_http_dependencies();
+		Functions\when( 'get_site_transient' )->justReturn( false );
+
+		Functions\expect( 'wp_remote_request' )->never();
+		Functions\expect( 'set_site_transient' )->never();
+
+		$this->assertSame( '42', $integration->product_id );
+		$this->assertSame( '', $integration->get_api_product_key() );
+
+		foreach ( [
+			$integration->client->check_license( 'ABC-123' ),
+			$integration->client->updates(),
+			$integration->client->details(),
+		] as $result ) {
+			$this->assertInstanceOf( WP_Error::class, $result );
+			$this->assertSame( 'wprepo_no_product_uid', $result->get_error_code() );
+		}
+	}
+
+	/** @test */
+	public function check_license_url_uses_uid_set_after_construction() {
+		$integration = $this->create_integration( [ 'product_uid' => '' ] );
 		$integration->setProductUid( 'prod_testuid' );
 		$this->stub_http_dependencies();
 
@@ -480,6 +557,6 @@ class ClientApiRequestTest extends IntegrationTestCase {
 
 		$integration->client->check_license( 'ABC-123' );
 
-		$this->assertStringContainsString( '/products/prod_testuid/check_license', $captured_url );
+		$this->assertStringContainsString( '/plugins/prod_testuid/check_license', $captured_url );
 	}
 }

@@ -11,10 +11,12 @@ class IntegrationProductUidTest extends IntegrationTestCase {
 	}
 
 	/** @test */
-	public function api_product_key_is_id_without_uid() {
+	public function api_product_key_never_falls_back_to_the_numeric_id() {
 		$integration = $this->create_integration();
 
-		$this->assertSame( '42', $integration->get_api_product_key() );
+		// wp-repo/v4 answers a numeric id with 404 rest_no_route.
+		$this->assertSame( '42', $integration->product_id );
+		$this->assertSame( '', $integration->get_api_product_key() );
 	}
 
 	/** @test */

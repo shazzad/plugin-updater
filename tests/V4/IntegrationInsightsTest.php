@@ -55,11 +55,12 @@ class IntegrationInsightsTest extends TestCase {
 	private function commercial_config( array $overrides = [] ): array {
 		return array_merge(
 			[
-				'api_url'    => 'https://repo.example.com/wp-json/wp-repo/v4',
-				'file'       => WP_PLUGIN_DIR . '/my-plugin/my-plugin.php',
-				'product_id' => '12',
-				'license'    => true,
-				'menu'       => [ 'parent' => 'options-general.php' ],
+				'api_url'     => 'https://repo.example.com/wp-json/wp-repo/v4',
+				'file'        => WP_PLUGIN_DIR . '/my-plugin/my-plugin.php',
+				'product_uid' => 'prod_abc',
+				'product_id'  => '12',
+				'license'     => true,
+				'menu'        => [ 'parent' => 'options-general.php' ],
 			],
 			$overrides
 		);
@@ -106,7 +107,7 @@ class IntegrationInsightsTest extends TestCase {
 		$this->assertInstanceOf( InsightsClient::class, $integration->insights_client );
 		$this->assertInstanceOf( Scheduler::class, $integration->insights_scheduler );
 		$this->assertSame(
-			'https://repo.example.com/wp-json/wp-repo/v4/products/12/track',
+			'https://repo.example.com/wp-json/wp-repo/v4/plugins/prod_abc/track',
 			$integration->insights_client->get_url( 'track' )
 		);
 		$this->assertSame( [], $this->doing_it_wrong );
@@ -122,7 +123,7 @@ class IntegrationInsightsTest extends TestCase {
 		);
 
 		$this->assertSame(
-			'https://repo.example.com/wp-json/wp-repo/v4/products/prod_abc/track',
+			'https://repo.example.com/wp-json/wp-repo/v4/plugins/prod_abc/track',
 			$integration->insights_client->get_url( 'track' )
 		);
 	}
@@ -134,7 +135,7 @@ class IntegrationInsightsTest extends TestCase {
 		$this->assertCount( 1, $this->doing_it_wrong );
 		$this->assertStringContainsString( 'Unrecognized config key "insights_api_url"', $this->doing_it_wrong[0] );
 		$this->assertSame(
-			'https://repo.example.com/wp-json/wp-repo/v4/products/12/track',
+			'https://repo.example.com/wp-json/wp-repo/v4/plugins/prod_abc/track',
 			$integration->insights_client->get_url( 'track' )
 		);
 	}
@@ -177,7 +178,72 @@ class IntegrationInsightsTest extends TestCase {
 		// Activation still refreshes caches but sends nothing.
 		$this->fire( 'activate_my-plugin/my-plugin.php' );
 		$this->assertSame( [], $this->http );
-		$this->assertContains( 'my-plugin12_updates_cache', $this->deleted_transients );
+		$this->assertContains( 'prod_abc_updates_cache', $this->deleted_transients );
+	}
+
+	/** @test */
+	public function a_missing_uid_draws_a_notice_and_sends_nothing_at_all() {
+		$integration = $this->create_integration( [ 'product_uid' => '' ] );
+
+		$this->assertCount( 1, $this->doing_it_wrong );
+		$this->assertStringContainsString( 'Missing required config key "product_uid"', $this->doing_it_wrong[0] );
+
+		// A numeric id alone would only reach 404 rest_no_route on v4.
+		$this->assertNull( $integration->insights_consent );
+		$this->assertNull( $integration->insights_collector );
+		$this->assertNull( $integration->insights_client );
+		$this->assertNull( $integration->insights_scheduler );
+		$this->assertArrayNotHasKey( 'wprepo_insights_track_my-plugin', $this->hooks );
+		$this->assertNotNull( $integration->updater );
+
+		$this->options['my-plugin12_code'] = 'LIC-12';
+
+		$this->assertArrayHasKey( 'wprepo_sync_license_data_my-plugin12', $this->hooks );
+		$this->fire( 'activate_my-plugin/my-plugin.php' );
+		$this->fire( 'wprepo_sync_license_data_my-plugin12' );
+		$this->fire( 'deactivate_my-plugin/my-plugin.php' );
+
+		$this->assertSame( [], $this->http, 'No track without a uid.' );
+		$this->assertSame( [], $this->requests, 'No update/license call without a uid.' );
+		// The refused call is not a verdict on the license.
+		$this->assertArrayNotHasKey( 'my-plugin12_data', $this->options );
+	}
+
+	/** @test */
+	public function set_product_uid_after_construction_turns_insights_on() {
+		$integration = $this->create_integration( [ 'product_uid' => '' ] );
+		$this->assertNull( $integration->insights_client );
+
+		$integration->setProductUid( 'prod_abc' );
+
+		$this->assertInstanceOf( InsightsClient::class, $integration->insights_client );
+		$this->assertInstanceOf( Scheduler::class, $integration->insights_scheduler );
+		$this->assertSame(
+			'https://repo.example.com/wp-json/wp-repo/v4/plugins/prod_abc/track',
+			$integration->insights_client->get_url( 'track' )
+		);
+
+		// A later uid change follows through to the Insights URL.
+		$integration->setProductUid( 'prod_xyz' );
+		$this->assertSame(
+			'https://repo.example.com/wp-json/wp-repo/v4/plugins/prod_xyz/track',
+			$integration->insights_client->get_url( 'track' )
+		);
+	}
+
+	/** @test */
+	public function set_product_uid_keeps_insights_off_on_a_v3_api_url() {
+		$integration = $this->create_integration(
+			[
+				'api_url'     => 'https://repo.example.com/wp-json/wp-repo/v3',
+				'product_uid' => '',
+			]
+		);
+
+		$integration->setProductUid( 'prod_abc' );
+
+		$this->assertNull( $integration->insights_client );
+		$this->assertNull( $integration->insights_scheduler );
 	}
 
 	/** @test */
@@ -207,7 +273,7 @@ class IntegrationInsightsTest extends TestCase {
 	 * @preserveGlobalState disabled
 	 */
 	public function commercial_path_never_loads_the_notice_class() {
-		$this->options['my-plugin12_code'] = 'LIC-12';
+		$this->options['prod_abc_code'] = 'LIC-12';
 
 		$integration = $this->create_integration();
 		$integration->insights_scheduler->run_daily();
@@ -219,7 +285,7 @@ class IntegrationInsightsTest extends TestCase {
 
 	/** @test */
 	public function collect_includes_the_stored_license_key() {
-		$this->options['my-plugin12_code'] = 'LIC-12';
+		$this->options['prod_abc_code'] = 'LIC-12';
 
 		$data = $this->create_integration()->insights_collector->collect();
 
@@ -232,7 +298,7 @@ class IntegrationInsightsTest extends TestCase {
 	public function collect_omits_the_license_when_none_is_stored_or_licensing_is_off() {
 		$this->assertArrayNotHasKey( 'license', $this->create_integration()->insights_collector->collect() );
 
-		$this->options['my-plugin12_code'] = 'LIC-12';
+		$this->options['prod_abc_code'] = 'LIC-12';
 
 		$data = $this->create_integration( [ 'license' => false ] )->insights_collector->collect();
 
@@ -241,14 +307,14 @@ class IntegrationInsightsTest extends TestCase {
 
 	/** @test */
 	public function daily_track_sends_with_license_and_without_any_consent_option() {
-		$this->options['my-plugin12_code'] = 'LIC-12';
+		$this->options['prod_abc_code'] = 'LIC-12';
 
 		$integration = $this->create_integration();
 
 		$this->fire( 'wprepo_insights_track_my-plugin' );
 
 		$this->assertCount( 1, $this->http );
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/products/12/track', $this->http[0][0] );
+		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/plugins/prod_abc/track', $this->http[0][0] );
 		$this->assertSame( 'daily', $this->http_body()['event'] );
 		$this->assertSame( 'commercial', $this->http_body()['mode'] );
 		$this->assertSame( 'LIC-12', $this->http_body()['license'] );
@@ -268,7 +334,7 @@ class IntegrationInsightsTest extends TestCase {
 
 	/** @test */
 	public function hourly_license_sync_checks_the_license_and_never_pings() {
-		$this->options['my-plugin12_code']             = 'LIC-12';
+		$this->options['prod_abc_code']             = 'LIC-12';
 		$this->options['my-plugin_insights_last_send'] = time() - 3600; // daily track not due.
 
 		$integration = $this->create_integration();
@@ -276,8 +342,8 @@ class IntegrationInsightsTest extends TestCase {
 		$this->fire( 'wprepo_sync_license_data_my-plugin12' );
 
 		$this->assertCount( 1, $this->requests );
-		$this->assertStringContainsString( '/wp-repo/v4/products/12/check_license', $this->requests[0] );
-		$this->assertSame( [ 'status' => 'active' ], $this->options['my-plugin12_data'] );
+		$this->assertStringContainsString( '/wp-repo/v4/plugins/prod_abc/check_license', $this->requests[0] );
+		$this->assertSame( [ 'status' => 'active' ], $this->options['prod_abc_data'] );
 		$this->assertSame( [], $this->http, 'The hourly sync must not POST while the daily track is not due.' );
 
 		foreach ( array_merge( $this->requests, array_column( $this->http, 0 ) ) as $url ) {
@@ -315,7 +381,7 @@ class IntegrationInsightsTest extends TestCase {
 		$this->fire( 'wprepo_sync_license_data_my-plugin12' );
 
 		$this->assertCount( 1, $this->http );
-		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/products/12/track', $this->http[0][0] );
+		$this->assertSame( 'https://repo.example.com/wp-json/wp-repo/v4/plugins/prod_abc/track', $this->http[0][0] );
 		$this->assertSame( 'daily', $this->http_body()['event'] );
 		$this->assertSame( 'daily', $this->cron['wprepo_insights_track_my-plugin'], 'The daily event was not re-created.' );
 		$this->assertEqualsWithDelta( time(), $this->options['my-plugin_insights_last_send'], 5 );
@@ -323,7 +389,7 @@ class IntegrationInsightsTest extends TestCase {
 
 	/** @test */
 	public function hourly_sync_and_daily_cron_never_double_send() {
-		$this->options['my-plugin12_code'] = 'LIC-12';
+		$this->options['prod_abc_code'] = 'LIC-12';
 
 		$this->create_integration();
 
@@ -338,7 +404,7 @@ class IntegrationInsightsTest extends TestCase {
 
 	/** @test */
 	public function hourly_sync_with_insights_off_still_checks_the_license() {
-		$this->options['my-plugin12_code'] = 'LIC-12';
+		$this->options['prod_abc_code'] = 'LIC-12';
 
 		$integration = $this->create_integration( [ 'api_url' => '' ] );
 
@@ -353,7 +419,7 @@ class IntegrationInsightsTest extends TestCase {
 
 	/** @test */
 	public function activation_sends_exactly_one_activate_track_and_refreshes_caches() {
-		$this->options['my-plugin12_code'] = 'LIC-12';
+		$this->options['prod_abc_code'] = 'LIC-12';
 
 		$integration = $this->create_integration();
 
@@ -361,12 +427,12 @@ class IntegrationInsightsTest extends TestCase {
 
 		$this->assertCount( 1, $this->http );
 		$this->assertSame( 'activate', $this->http_body()['event'] );
-		$this->assertSame( 'active', $this->http_body()['product_status'] );
+		$this->assertSame( 'active', $this->http_body()['plugin_status'] );
 		$this->assertSame( 'LIC-12', $this->http_body()['license'] );
 		$this->assertSame( [], $this->requests );
 		$this->assertSame( 'daily', $this->cron['wprepo_insights_track_my-plugin'] );
 		$this->assertSame( 'active', $integration->product_status );
-		$this->assertContains( 'my-plugin12_updates_cache', $this->deleted_transients );
+		$this->assertContains( 'prod_abc_updates_cache', $this->deleted_transients );
 	}
 
 	/** @test */
@@ -378,7 +444,7 @@ class IntegrationInsightsTest extends TestCase {
 
 		$this->assertCount( 1, $this->http );
 		$this->assertSame( 'deactivate', $this->http_body()['event'] );
-		$this->assertSame( 'inactive', $this->http_body()['product_status'] );
+		$this->assertSame( 'inactive', $this->http_body()['plugin_status'] );
 		$this->assertArrayNotHasKey( 'wprepo_insights_track_my-plugin', $this->cron );
 		$this->assertSame( 'inactive', $integration->product_status );
 	}
