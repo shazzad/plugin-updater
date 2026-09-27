@@ -41,8 +41,8 @@ The library ships one namespace per major version, side by side:
   Both talk to the repo server's **`wp-repo/v4`** API — one `api_url`
   (`https://w4dev.com/wp-json/wp-repo/v4`) serves updates, licensing and Insights, each plugin
   addressed as `{api_url}/plugins/{uid}/…`. Both require **`product_uid`** (the `prod_…` uid):
-  v4 accepts no numeric id. `wp-repo/v3` has no Insights routes and stays, frozen, for V1/V2
-  clients. Requires `composer require shazzad/plugin-updater:^4.0` and `shazzad/plugin-repo`
+  v4 accepts no numeric id. `wp-repo/v3` has no `plugins/{uid}` routes, so V4 does nothing
+  against it; it stays, frozen, for V1/V2 clients. Requires `composer require shazzad/plugin-updater:^4.0` and `shazzad/plugin-repo`
   2.9.0+ on the server (the `plugins/{uid}` routes).
 - **`Shazzad\PluginUpdater\V2`** (`src/V2/`) — stable: additive fixes only. Config-array
   constructor, license admin notices, and an explanation line in the plugins-list update row.
@@ -118,11 +118,25 @@ The config is the V2 array, with `api_url` on `wp-repo/v4`: the same base serves
 licensing and Insights. `product_uid` is **required**: every call goes to
 `{api_url}/plugins/{uid}/…`, and v4 answers a numeric id with `404 rest_no_route`. Without a
 uid, `_doing_it_wrong()` fires and no update, license or Insights call is made (the plugin
-still loads). `product_id` is never sent; it only lets a plugin that shipped on V1 reach the
-licenses its customers saved under id-based keys. An `api_url` still on `wp-repo/v3` (copied from a V2 config) fires
-`_doing_it_wrong()` and leaves tracking off — v3 has no Insights routes (updates and licensing
-still work). Tracking needs no consent here and
-never shows a notice; the stored license key is included so the server can bind the install.
+still loads). The uid must look like the server's: `prod_` followed by lowercase letters and
+digits; anything else draws the same kind of notice and counts as missing. `product_id` is
+never sent; it only lets a plugin that shipped on V1 reach the licenses its customers saved
+under id-based keys.
+
+**V4 needs a `wp-repo/v4` `api_url`.** One still on `wp-repo/v3` (copied from a V2 config)
+fires `_doing_it_wrong()` and **nothing works**: no update check, no license check, no
+Insights — v3 has no `plugins/{uid}` routes, so every call returns a `wprepo_v3_api_url`
+`WP_Error` without a request (never an invalid-license verdict). A trailing slash on `api_url`
+is trimmed.
+
+Pass `product_uid` in the config rather than calling `setProductUid()` afterwards: the setter
+still works (it also turns Insights on), but the constructor has already emitted the "missing
+product_uid" `_doing_it_wrong()` notice by then, so debug logs show it on every request.
+
+Tracking needs no consent here and never shows a notice. The stored license key is included
+so the server can bind the install; with licensing on and **no** key stored, `license` is
+sent as `""`, which unbinds the install and frees its license seat on the server. With
+licensing off no `license` key is sent at all.
 The Insights parts are public properties: `$insights_consent`, `$insights_collector`,
 `$insights_client`, `$insights_scheduler` (all `null` when tracking is off).
 
@@ -298,12 +312,20 @@ only reaches id-keyed V1 licenses); `meta` / `meta_callback` are now sent with I
 
 Options per plugin (`{slug}` = plugin directory): `{slug}_insights_consent`,
 `{slug}_insights_token`, `{slug}_insights_last_send`, `{slug}_insights_optout_pending` (a failed
-opt-out awaiting retry); cron hook `wprepo_insights_track_{slug}`. Deactivation clears the cron
+opt-out awaiting retry), `{slug}_insights_last_attempt` (time of the last track the server
+refused with a 4xx) and `{slug}_insights_disabled_version` (plugin version the server answered
+`403 wprepo_insights_tracking_disabled`); cron hook `wprepo_insights_track_{slug}`.
+
+When the server refuses a track with any 4xx, the next daily track waits the same 20 hours as
+after a success, so the hourly license sync does not re-send a body the server will refuse
+again. After `403 wprepo_insights_tracking_disabled` nothing but `deactivate` (and an opt-out)
+is sent until the installed plugin version changes. Network errors and 5xx are retried on
+the next run. Deactivation clears the cron
 (on every site of the network when network-deactivated) and keeps the options, so a
 re-activation does not ask again.
 
 Remove them on uninstall with `\Shazzad\PluginUpdater\V4\Insights::uninstall( $file )` — it
-deletes the four options and the cron on every site of a multisite network and sends nothing.
+deletes the six options and the cron on every site of a multisite network and sends nothing.
 It works for commercial `V4\Integration` plugins too (same keys; the consent option is simply
 absent there).
 

@@ -28,13 +28,31 @@ number matches the server API it calls (`V4` ↔ `wp-repo/v4`); V1 and V2 stay o
 - New: `V4\Integration` — commercial entry point. Same config, storage keys, transients, cron
   hook, license page, notices and update-row message as V2 (moving V2 → V4 keeps every saved
   license). `api_url` moves from `wp-repo/v3` to `wp-repo/v4`, which serves updates, licensing
-  and Insights from one base (an `api_url` still on v3 fires `_doing_it_wrong()` and leaves tracking off). Tracking runs through the Insights parts in commercial mode — no consent step,
+  and Insights from one base. Tracking runs through the Insights parts in commercial mode — no consent step,
   no notice, license key included — exposed as `$insights_consent`, `$insights_collector`,
   `$insights_client`, `$insights_scheduler`
 - Changed (V4 vs V2): API URLs are `{api_url}/plugins/{uid}/{updates,details,check_license}`
   (V2: `{api_url}/products/{uid-or-id}/…` on `wp-repo/v3`); `get_api_product_key()` returns
   the uid only, never the numeric id. The track payload carries `plugin_version` /
   `plugin_status`; config keys and the `product_*` properties keep their names.
+- New: an `api_url` on `wp-repo/v3` makes V4 refuse every call — updates, license checks and
+  Insights, in both entry points — with a `_doing_it_wrong()` notice, a `wprepo_v3_api_url` /
+  `wprepo_insights_v3_api_url` `WP_Error` and no request (v3 has no `plugins/{uid}` routes). The
+  refusal is never read as an invalid license. The free entry point draws no consent notice then
+- New: a `product_uid` that does not match the server's route pattern (`prod_` + lowercase
+  letters and digits) draws a `_doing_it_wrong()` notice and is treated as missing
+- New: `Insights::opt_in()` returns a `WP_Error` and stores no consent, token or cron when
+  nothing could be sent (no valid uid, no or a v3 `api_url`)
+- New: after a track refused with a 4xx, the next daily track waits 20 hours
+  (`{slug}_insights_last_attempt`), so the hourly license sync no longer re-sends a refused
+  body every hour. After `403 wprepo_insights_tracking_disabled` only `deactivate` (and opt-out)
+  is sent until the plugin version changes (`{slug}_insights_disabled_version`). Network errors
+  and 5xx still retry on the next run. `Insights::uninstall()` removes both options
+- New (commercial): with licensing on and no license key stored, tracks send `"license": ""`,
+  which unbinds the install on the server and frees its seat (licensing off: no `license` key)
+- Fixed: `api_url` with a trailing slash built `…/v4//plugins/…`; it is trimmed once
+- Fixed: the update client did not URL-encode the license key, so keys with `+`, `&`, `#` or
+  spaces reached the server altered
 - Changed (V4 vs V2): `Client::ping()` removed. The hourly `wprepo_sync_license_data_{name}`
   sync only checks the license; activation, deactivation and upgrade refresh caches and leave
   the (single) track to the Insights scheduler. `admin_email` / `admin_name` left

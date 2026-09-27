@@ -73,19 +73,31 @@ Two entry points over one set of Insights parts:
   Insights parts (a later `setProductUid()` does) and `Insights` draws no notice. `product_id`
   is optional, never sent, and only reaches V1 id-keyed license storage. Config keys and the
   `product_*` properties keep their names; only the wire changed (`plugins/` path, track keys
-  `plugin_version` / `plugin_status`). An `api_url` on `wp-repo/v3` (no Insights
-  routes there) → `_doing_it_wrong()` and the four properties stay `null`; updates and
-  licensing still work. `Client::ping()` is gone: the hourly
+  `plugin_version` / `plugin_status`). A malformed uid (not `^prod_[a-z0-9]+\z`, the server's
+  route pattern) draws its own notice and counts as missing. An `api_url` on `wp-repo/v3` (no
+  `plugins/{uid}` routes) → `_doing_it_wrong()` and **nothing works**: the update `Client`
+  refuses every call (`wprepo_v3_api_url`, never an `invalid_license` verdict), the four
+  Insights properties stay `null`, and the free `Insights` draws no notice and sends nothing
+  (`wprepo_insights_v3_api_url`). The single gates are `Integration::get_api_error()` and
+  `Insights\Client::get_config_error()`; `Insights::opt_in()` returns the latter's error without
+  storing consent, token or cron. `api_url` is right-trimmed of `/` once in the constructor.
+  `Client::ping()` is gone: the hourly
   `wprepo_sync_license_data_{license_name}` sync checks the license and backs up the daily track, `Tracker`
   activate/deactivate and `Updater` post-upgrade only refresh caches, and the Insights
   `Scheduler` sends the `activate`/`deactivate`/`upgrade`/daily tracks (license key included
-  via `get_insights_license()` when licensing is on). `meta`/`meta_callback`/`setMeta()`/
+  via `get_insights_license()` when licensing is on — `""` when no key is stored, which makes
+  the server unbind the install and free the seat; no `license` key when licensing is off).
+  The update `Client` `rawurlencode()`s its query args (`add_query_arg()` does not). `meta`/`meta_callback`/`setMeta()`/
   `setMetaCallback()` feed the collector. `tests/V4/CommercialIsolationTest.php` keeps the
   commercial files off `Insights\Notice`, the free entry point, `ping` and V1/V2.
 
 Insights storage per plugin (`{slug}` = plugin directory): options `{slug}_insights_consent`,
 `{slug}_insights_token`, `{slug}_insights_last_send`, `{slug}_insights_optout_pending` (failed
-opt-out, retried up to 7 days); daily cron `wprepo_insights_track_{slug}`, re-created on
+opt-out, retried up to 7 days), `{slug}_insights_last_attempt` (last 4xx-refused track: the next
+daily track waits `MIN_INTERVAL`, so the hourly sync never re-POSTs a refused body) and
+`{slug}_insights_disabled_version` (after `403 wprepo_insights_tracking_disabled`, only
+`deactivate` and opt-out go out until the installed version differs; 5xx and network errors
+keep retrying); daily cron `wprepo_insights_track_{slug}`, re-created on
 `admin_init` when consent is granted and, for commercial plugins, by the hourly license sync
 (which also sends the daily track when due). `Insights::uninstall( $file )` removes all of it,
 network-wide. The notice's "What we collect" list (`Notice::get_collected_items()`) must stay in
