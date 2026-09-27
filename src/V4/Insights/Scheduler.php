@@ -34,6 +34,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 		/**
 		 * Minimum gap between two daily tracks, in seconds (20 hours). Keeps a
 		 * cron that fires twice, or a re-scheduled event, from double-sending.
+		 * Also the wait after a track the server refused with a 4xx (see
+		 * send()), so a refused payload is not re-posted by every hourly
+		 * license sync.
 		 *
 		 * @since 4.0.0
 		 *
@@ -153,6 +156,57 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 		 */
 		public function get_last_send_key() {
 			return "{$this->slug}_insights_last_send";
+		}
+
+		/**
+		 * Option key holding the time of the last track the server refused
+		 * with a 4xx. Cleared by the next successful send.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @return string
+		 */
+		public function get_last_attempt_key() {
+			return "{$this->slug}_insights_last_attempt";
+		}
+
+		/**
+		 * Option key holding the plugin version the server answered with
+		 * `403 wprepo_insights_tracking_disabled`. While the installed version
+		 * is still that one, tracks (except `deactivate`) are not sent.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @return string
+		 */
+		public function get_disabled_version_key() {
+			return "{$this->slug}_insights_disabled_version";
+		}
+
+		/**
+		 * Whether the server switched tracking off for the installed plugin
+		 * version. The contract says to stop sending until the plugin
+		 * updates, so a different installed version clears the flag.
+		 *
+		 * @since 4.0.0
+		 *
+		 * @return bool
+		 */
+		public function is_tracking_disabled() {
+			$version = (string) get_option( $this->get_disabled_version_key(), '' );
+
+			if ( '' === $version ) {
+				return false;
+			}
+
+			$header = $this->collector->get_plugin_header();
+
+			if ( $header['Version'] !== $version ) {
+				delete_option( $this->get_disabled_version_key() );
+				return false;
+			}
+
+			return true;
 		}
 
 		/**
@@ -282,7 +336,16 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 		}
 
 		/**
-		 * Sends one event and records the send time on success.
+		 * Sends one event and records the outcome.
+		 *
+		 * - Success: stores the send time, clears any refusal state.
+		 * - 4xx: stores the attempt time; run_daily() then waits
+		 *   MIN_INTERVAL, as after a success — the same body would be refused
+		 *   again.
+		 * - `403 wprepo_insights_tracking_disabled`: also remembers the
+		 *   installed version; nothing but `deactivate` is sent again until the
+		 *   plugin version changes.
+		 * - Network errors and 5xx: nothing stored, so the next run retries.
 		 *
 		 * @since 4.0.0
 		 *
@@ -294,10 +357,35 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 				return new WP_Error( 'wprepo_insights_no_consent', 'Insights consent not granted; nothing sent.' );
 			}
 
+			// `deactivate` still goes out: it is the one event the server
+			// needs to mark the install inactive.
+			if ( 'deactivate' !== $event && $this->is_tracking_disabled() ) {
+				return new WP_Error(
+					'wprepo_insights_tracking_paused',
+					'The server switched tracking off for this plugin version; nothing sent until the plugin updates.'
+				);
+			}
+
 			$result = $this->client->track( $event );
 
 			if ( ! is_wp_error( $result ) ) {
 				update_option( $this->get_last_send_key(), time(), false );
+				delete_option( $this->get_last_attempt_key() );
+				delete_option( $this->get_disabled_version_key() );
+
+				return $result;
+			}
+
+			$data   = $result->get_error_data();
+			$status = \is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 0;
+
+			if ( $status >= 400 && $status < 500 ) {
+				update_option( $this->get_last_attempt_key(), time(), false );
+
+				if ( 403 === $status && 'wprepo_insights_tracking_disabled' === $result->get_error_code() ) {
+					$header = $this->collector->get_plugin_header();
+					update_option( $this->get_disabled_version_key(), $header['Version'], false );
+				}
 			}
 
 			return $result;
@@ -321,9 +409,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Scheduler' ) ) :
 				return;
 			}
 
-			$last_send = $this->get_last_send();
+			// The later of the last success and the last refused (4xx) try.
+			$last = \max( $this->get_last_send(), (int) get_option( $this->get_last_attempt_key(), 0 ) );
 
-			if ( $last_send && ( time() - $last_send ) < self::MIN_INTERVAL ) {
+			if ( $last && ( time() - $last ) < self::MIN_INTERVAL ) {
 				return;
 			}
 

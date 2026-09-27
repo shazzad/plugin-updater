@@ -467,6 +467,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 				$consent->get_token_key(),
 				"{$slug}_insights_last_send",
 				$consent->get_optout_pending_key(),
+				"{$slug}_insights_last_attempt",
+				"{$slug}_insights_disabled_version",
 			];
 		}
 	}
