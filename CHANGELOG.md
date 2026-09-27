@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.0.0 - Unreleased
+## 4.0.0 - 2026-09-27
 
 New `Shazzad\PluginUpdater\V4` namespace under `src/V4/`: consent-based usage tracking
 ("Insights") for free plugins, and a commercial entry point that tracks through the same
