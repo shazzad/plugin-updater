@@ -14,7 +14,7 @@ use Shazzad\PluginUpdater\V4\Insights\Consent;
 use Shazzad\PluginUpdater\V4\Insights\Notice;
 use Shazzad\PluginUpdater\V4\Insights\Scheduler;
 
-if ( ! \defined( 'ABSPATH' ) ) {
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 

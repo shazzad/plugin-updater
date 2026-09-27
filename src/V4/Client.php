@@ -9,7 +9,7 @@ namespace Shazzad\PluginUpdater\V4;
 
 use WP_Error;
 
-if ( ! \defined( 'ABSPATH' ) ) {
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 

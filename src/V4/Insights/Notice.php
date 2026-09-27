@@ -10,7 +10,7 @@ namespace Shazzad\PluginUpdater\V4\Insights;
 
 use Shazzad\PluginUpdater\V4\Insights;
 
-if ( ! \defined( 'ABSPATH' ) ) {
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 

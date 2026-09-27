@@ -10,7 +10,7 @@ namespace Shazzad\PluginUpdater\V4\License;
 use Shazzad\PluginUpdater\V4\Insights\Collector as InsightsCollector;
 use Shazzad\PluginUpdater\V4\Integration;
 
-if ( ! \defined( 'ABSPATH' ) ) {
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
