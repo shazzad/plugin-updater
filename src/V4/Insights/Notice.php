@@ -101,7 +101,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notice' ) ) :
 		public $show_callback = null;
 
 		/**
-		 * Extra "What we collect" lines appended to the built-in list.
+		 * Extra "What we collect" lines appended to the built-in list. They
+		 * replace the generic "Usage statistics" line for the plugin's meta.
 		 *
 		 * @since 4.0.0
 		 *
@@ -121,7 +122,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notice' ) ) :
 		 *     @type string[] $screens       Screen ids.
 		 *     @type string   $text          Text override.
 		 *     @type callable $show_callback Extra gate.
-		 *     @type string[] $items         Extra "What we collect" lines.
+		 *     @type string[] $items         Extra "What we collect" lines; replace the
+		 *                                   generic "Usage statistics" line.
 		 * }
 		 */
 		public function __construct( Insights $insights, array $args = [] ) {
@@ -217,12 +219,12 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notice' ) ) :
 
 		/**
 		 * What the notice says is collected: one line per group of the
-		 * Collector payload, a line for the plugin's own statistics when it
-		 * sends `meta`, then the configured extra `items`. Plain text; the
-		 * renderer escapes it.
+		 * consent-mode Collector payload, then the configured extra `items`
+		 * — or, when there are none and the plugin sends `meta`, a generic
+		 * line for its own statistics. Plain text; the renderer escapes it.
 		 *
-		 * Keep this in step with Collector::collect() — the notice is the
-		 * consent, so it must never promise less than is sent.
+		 * Keep this in step with Collector::collect() in consent mode — the
+		 * notice is the consent, so it must never promise less than is sent.
 		 *
 		 * @since 4.0.0
 		 *
@@ -230,14 +232,16 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notice' ) ) :
 		 */
 		public function get_collected_items() {
 			$items = [
-				'Site name, URL and language, whether it is a multisite, and whether it looks like a local development site',
-				"Your site's admin email address and administrator name",
-				'WordPress version, memory limit and debug mode',
+				'Site URL, name and language, whether it is a multisite, and whether it looks like a local development site',
+				'WordPress version and memory limit',
 				'Active theme (name, version and parent theme)',
-				'Server environment details (PHP and MySQL versions, server software, PHP memory, execution time and upload limits)',
-				'Number of users on your site, by role',
-				'Number of active and inactive plugins, and the names and versions of active plugins',
+				'Server environment (PHP and database versions, server software, PHP memory limit)',
+				'Active plugins: name, version and plugin URL',
 			];
+
+			if ( ! empty( $this->items ) ) {
+				return \array_merge( $items, $this->items );
+			}
 
 			$collector = $this->insights->collector;
 
@@ -245,7 +249,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Notice' ) ) :
 				$items[] = \sprintf( 'Usage statistics specific to %s', $this->insights->get_name() );
 			}
 
-			return \array_merge( $items, $this->items );
+			return $items;
 		}
 
 		/**

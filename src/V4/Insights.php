@@ -162,7 +162,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Insights' ) ) :
 		 *     @type string         $privacy_url   "Learn more" link in the notice. Omitted when empty.
 		 *     @type array|false    $notice        `screens` (screen ids; default every admin screen),
 		 *                                         `text` (override; `%s` = name), `show_callback` (extra gate),
-		 *                                         `items` (extra "What we collect" lines, strings);
+		 *                                         `items` (extra "What we collect" lines, strings; they
+		 *                                         replace the generic "Usage statistics" line for `meta`);
 		 *                                         or false to draw no notice (the plugin calls opt_in() itself).
 		 *     @type array          $meta          Static metadata; Closures resolve at send time.
 		 *     @type callable       $meta_callback Returns a metadata array at send time.
