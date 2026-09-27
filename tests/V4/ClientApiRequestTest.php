@@ -513,6 +513,65 @@ class ClientApiRequestTest extends IntegrationTestCase {
 		];
 	}
 
+	/**
+	 * @test
+	 * @dataProvider provide_license_calls
+	 */
+	public function the_license_key_is_url_encoded_in_the_query( string $method ) {
+		$key = 'A+B&C#D %E/F';
+
+		// Stored for updates()/details(); read once by the construction-time
+		// migration check and once by the call.
+		Functions\when( 'get_option' )->justReturn( $key );
+
+		$integration = $this->create_integration( [ 'license' => true ] );
+		$this->stub_http_dependencies();
+		Functions\when( 'get_site_transient' )->justReturn( false );
+		Functions\when( 'set_site_transient' )->justReturn( true );
+
+		// Like WordPress: add_query_arg() does not encode values itself.
+		Functions\when( 'add_query_arg' )->alias( function ( $args, $url ) {
+			$pairs = [];
+			foreach ( $args as $name => $value ) {
+				$pairs[] = $name . '=' . $value;
+			}
+			return $url . '?' . implode( '&', $pairs );
+		} );
+
+		$captured_url = null;
+
+		Functions\expect( 'wp_remote_request' )
+			->once()
+			->with( \Mockery::on( function ( $url ) use ( &$captured_url ) {
+				$captured_url = $url;
+				return true;
+			} ), \Mockery::any() )
+			->andReturn( [] );
+
+		Functions\expect( 'wp_remote_retrieve_response_code' )->once()->andReturn( 200 );
+		Functions\expect( 'wp_remote_retrieve_body' )->once()->andReturn( '{"ok":true}' );
+
+		if ( 'check_license' === $method ) {
+			$integration->client->check_license( $key );
+		} else {
+			$integration->client->$method( 0 );
+		}
+
+		$this->assertStringEndsWith( '?license=A%2BB%26C%23D%20%25E%2FF', $captured_url );
+
+		$query = [];
+		parse_str( (string) parse_url( $captured_url, PHP_URL_QUERY ), $query );
+		$this->assertSame( [ 'license' => $key ], $query, 'The server reads back the exact key.' );
+	}
+
+	public function provide_license_calls(): array {
+		return [
+			'check_license' => [ 'check_license' ],
+			'updates'       => [ 'updates' ],
+			'details'       => [ 'details' ],
+		];
+	}
+
 	/** @test */
 	public function no_request_is_made_without_a_uid_even_with_a_numeric_id() {
 		$integration = $this->create_integration( [ 'product_uid' => '' ] );

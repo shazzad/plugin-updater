@@ -167,7 +167,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Client' ) ) :
 			$request_url = "{$this->integration->api_url}/plugins/{$uid}/$method";
 
 			if ( ! empty( $args ) ) {
-				$request_url = add_query_arg( $args, $request_url );
+				// add_query_arg() does not encode values; a key holding `+`,
+				// `&` or `#` would otherwise reach the server altered.
+				$request_url = add_query_arg( \array_map( 'rawurlencode', \array_map( 'strval', $args ) ), $request_url );
 			}
 
 			$request = wp_remote_request(
