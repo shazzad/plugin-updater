@@ -520,17 +520,21 @@ if ( ! class_exists( __NAMESPACE__ . '\\Integration' ) ) :
 		}
 
 		/**
-		 * License key for the Insights payload: the stored code when
-		 * licensing is on, otherwise '' (nothing sent) — the rule the V2 ping
-		 * used.
+		 * License key for the Insights payload.
+		 *
+		 * - Licensing off: null — no `license` key in the payload, so the
+		 *   server leaves the install's binding alone.
+		 * - Licensing on, a code stored: the code (the server binds it).
+		 * - Licensing on, no code stored: '' — the server unbinds the install
+		 *   and the license seat is released (v4 track license rule).
 		 *
 		 * @since 4.0.0
 		 *
-		 * @return string
+		 * @return string|null
 		 */
 		public function get_insights_license() {
 			if ( ! $this->license_enabled ) {
-				return '';
+				return null;
 			}
 
 			$license = $this->get_license_code();

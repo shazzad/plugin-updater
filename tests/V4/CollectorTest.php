@@ -121,21 +121,37 @@ class CollectorTest extends TestCase {
 	}
 
 	/** @test */
-	public function license_is_sent_only_when_callback_returns_a_key() {
+	public function license_is_sent_whenever_the_callback_returns_a_string() {
 		$empty = $this->collector( [ 'license_callback' => function () {
 			return '';
+		} ], 'commercial' )->collect();
+		$null  = $this->collector( [ 'license_callback' => function () {
+			return null;
 		} ], 'commercial' )->collect();
 		$false = $this->collector( [ 'license_callback' => function () {
 			return false;
 		} ], 'commercial' )->collect();
 		$set   = $this->collector( [ 'license_callback' => function () {
-			return 'KEY-123';
+			return ' KEY-123 ';
 		} ], 'commercial' )->collect();
 
-		$this->assertArrayNotHasKey( 'license', $empty );
+		// '' is sent: it tells the server to unbind the install (seat release).
+		$this->assertArrayHasKey( 'license', $empty );
+		$this->assertSame( '', $empty['license'] );
+		$this->assertArrayNotHasKey( 'license', $null );
 		$this->assertArrayNotHasKey( 'license', $false );
 		$this->assertSame( 'KEY-123', $set['license'] );
 		$this->assertSame( 'commercial', $set['mode'] );
+	}
+
+	/** @test */
+	public function free_collector_never_sends_a_license_key() {
+		$this->options['my-plugin_insights_consent'] = 'yes';
+
+		$data = $this->collector()->collect();
+
+		$this->assertArrayNotHasKey( 'license', $data );
+		$this->assertNull( $this->collector()->get_license() );
 	}
 
 	/** @test */

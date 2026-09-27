@@ -83,8 +83,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 		public $meta_callback = null;
 
 		/**
-		 * Callback returning the license key. The key is sent only when this
-		 * is set and returns a non-empty string (commercial plugins).
+		 * Callback returning the license key (commercial plugins). A string is
+		 * sent as `license` — even '', which tells the server to unbind the
+		 * install and free its seat; null (or no callback: free plugins)
+		 * sends no `license` key at all.
 		 *
 		 * @since 4.0.0
 		 *
@@ -155,7 +157,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 
 			$license = $this->get_license();
 
-			if ( '' !== $license ) {
+			if ( null !== $license ) {
 				$data['license'] = $license;
 			}
 
@@ -400,20 +402,21 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 		}
 
 		/**
-		 * The license key, or '' when there is none to send.
+		 * The license key to send: a string (possibly '' = "no license, unbind
+		 * this install"), or null when no `license` key is to be sent.
 		 *
 		 * @since 4.0.0
 		 *
-		 * @return string
+		 * @return string|null
 		 */
 		public function get_license() {
 			if ( ! \is_callable( $this->license_callback ) ) {
-				return '';
+				return null;
 			}
 
 			$license = \call_user_func( $this->license_callback );
 
-			return \is_string( $license ) ? \trim( $license ) : '';
+			return \is_string( $license ) ? \trim( $license ) : null;
 		}
 
 		/**

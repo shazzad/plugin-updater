@@ -295,9 +295,30 @@ class IntegrationInsightsTest extends TestCase {
 	}
 
 	/** @test */
-	public function collect_omits_the_license_when_none_is_stored_or_licensing_is_off() {
-		$this->assertArrayNotHasKey( 'license', $this->create_integration()->insights_collector->collect() );
+	public function collect_sends_an_empty_license_when_licensed_but_none_is_stored() {
+		// Licensing on, no code: '' tells the server to unbind the install and
+		// free its seat (v4 track license rule).
+		$data = $this->create_integration()->insights_collector->collect();
 
+		$this->assertArrayHasKey( 'license', $data );
+		$this->assertSame( '', $data['license'] );
+	}
+
+	/** @test */
+	public function a_deleted_license_goes_out_as_an_empty_license_on_the_next_track() {
+		$this->options['prod_abc_code'] = 'LIC-12';
+		$integration                    = $this->create_integration();
+
+		$integration->insights_scheduler->send( 'daily' );
+		$this->assertSame( 'LIC-12', $this->http_body( 0 )['license'] );
+
+		unset( $this->options['prod_abc_code'] );
+		$integration->insights_scheduler->send( 'daily' );
+		$this->assertSame( '', $this->http_body( 1 )['license'] );
+	}
+
+	/** @test */
+	public function collect_omits_the_license_when_licensing_is_off() {
 		$this->options['prod_abc_code'] = 'LIC-12';
 
 		$data = $this->create_integration( [ 'license' => false ] )->insights_collector->collect();
