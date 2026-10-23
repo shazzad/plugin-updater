@@ -56,6 +56,9 @@ abstract class TestCase extends PHPUnitTestCase {
 	/** @var string[] active_plugins option */
 	protected $active_plugins = [];
 
+	/** @var string wp_get_environment_type() return */
+	protected $environment_type = 'production';
+
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
@@ -160,6 +163,9 @@ abstract class TestCase extends PHPUnitTestCase {
 			return $test->installed_plugins;
 		} );
 		Functions\when( 'site_url' )->justReturn( 'https://example.org' );
+		Functions\when( 'wp_get_environment_type' )->alias( function () use ( $test ) {
+			return $test->environment_type;
+		} );
 		Functions\when( 'esc_url_raw' )->returnArg();
 		Functions\when( 'get_bloginfo' )->alias( function ( $show ) {
 			return 'version' === $show ? '6.9' : 'Example &amp; Co';

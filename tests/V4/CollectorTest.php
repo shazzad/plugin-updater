@@ -209,6 +209,38 @@ class CollectorTest extends TestCase {
 		}
 	}
 
+	/**
+	 * A staging copy on a real domain is local when WordPress says the
+	 * environment is not production.
+	 *
+	 * @test
+	 * @dataProvider environment_types
+	 */
+	public function non_production_environment_type_is_local( $type, $url, $expected ) {
+		$this->environment_type = $type;
+		\Brain\Monkey\Functions\when( 'site_url' )->justReturn( $url );
+
+		$this->assertSame( $expected, $this->collector()->is_local_server() );
+	}
+
+	public function environment_types(): array {
+		return [
+			'staging, real host'         => [ 'staging', 'https://example.org', true ],
+			'development, real host'     => [ 'development', 'https://example.org', true ],
+			'local, real host'           => [ 'local', 'https://example.org', true ],
+			'production, real host'      => [ 'production', 'https://example.org', false ],
+			'production, .test host'     => [ 'production', 'https://site.test', true ],
+		];
+	}
+
+	/** @test */
+	public function is_local_filter_has_the_last_word_over_environment_type() {
+		$this->environment_type = 'staging';
+		\Brain\Monkey\Filters\expectApplied( 'wprepo_insights_is_local' )->once()->with( true, 'my-plugin/my-plugin.php' )->andReturn( false );
+
+		$this->assertFalse( $this->collector()->is_local_server() );
+	}
+
 	/** @test */
 	public function basename_to_slug_handles_single_file_plugins() {
 		$this->assertSame( 'akismet', Collector::basename_to_slug( 'akismet/akismet.php' ) );

@@ -452,12 +452,20 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 		/**
 		 * Whether this looks like a local/development install.
 		 *
-		 * Same heuristic as Appsero's, but the host comes from the site URL
-		 * rather than HTTP_HOST: the daily track runs in cron, where there is
-		 * no request host and Appsero's fallback would call every site local.
-		 * Filterable through `wprepo_insights_is_local`.
+		 * Two signals, either one is enough:
+		 *
+		 * - Same host heuristic as Appsero's, but the host comes from the site
+		 *   URL rather than HTTP_HOST: the daily track runs in cron, where there
+		 *   is no request host and Appsero's fallback would call every site local.
+		 * - The WordPress environment type (`wp_get_environment_type()`, 5.5+)
+		 *   is anything other than `production`: hosts set `staging`,
+		 *   `development` or `local` on their staging copies, which otherwise
+		 *   run on real domains the host heuristic cannot tell apart.
+		 *
+		 * Filterable through `wprepo_insights_is_local`, which has the last word.
 		 *
 		 * @since 4.0.0
+		 * @since 4.1.0 Also true for a non-production environment type.
 		 *
 		 * @return bool
 		 */
@@ -469,6 +477,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 				|| '' === $host
 				|| false === \strpos( $host, '.' )
 				|| \in_array( \strrchr( $host, '.' ), [ '.test', '.testing', '.local', '.localhost', '.localdomain', '.example', '.invalid' ], true );
+
+			if ( ! $is_local && \function_exists( 'wp_get_environment_type' ) ) {
+				$is_local = 'production' !== wp_get_environment_type();
+			}
 
 			return (bool) apply_filters( 'wprepo_insights_is_local', $is_local, $this->file );
 		}
