@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Changed: Insights reports a site as local (`site.is_local`) when WordPress reports a
+  non-production environment type (staging, development, local) through
+  `wp_get_environment_type()`, so staging copies on real domains are caught. The host
+  heuristic stays, and the `wprepo_insights_is_local` filter still has the last word
+
 ## 4.0.0 - 2026-09-27
 
 New `Shazzad\PluginUpdater\V4` namespace under `src/V4/`: consent-based usage tracking
