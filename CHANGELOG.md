@@ -19,6 +19,10 @@ was released the same day and no plugin ships it yet.
   sends `meta` and passes no `notice.items`; given items replace it
 - Fixed: every `src/V4/` file guards with `defined( 'ABSPATH' )` instead of `\defined( … )`,
   which Plugin Check's direct-file-access check (it scans `vendor/`) did not recognise
+- Changed: Insights reports a site as local (`site.is_local`) when WordPress reports a
+  non-production environment type (staging, development, local) through
+  `wp_get_environment_type()`, so staging copies on real domains are caught. The host
+  heuristic stays, and the `wprepo_insights_is_local` filter still has the last word
 
 ## 4.0.0 - 2026-09-27
 
