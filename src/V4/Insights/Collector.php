@@ -8,7 +8,7 @@
 
 namespace Shazzad\PluginUpdater\V4\Insights;
 
-if ( ! \defined( 'ABSPATH' ) ) {
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
@@ -17,10 +17,13 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 	/**
 	 * Class Collector
 	 *
-	 * Builds the Insights payload: product, site, admin, WordPress, server,
-	 * users, plugins, plus the plugin's own meta and — commercial only — the
-	 * license key. Read-only: it never sends anything, so a plugin can call
-	 * collect() to show the admin exactly what would be sent.
+	 * Builds the Insights payload: product, site, WordPress, server, active
+	 * plugins and the plugin's own meta. Commercial mode adds the admin and
+	 * users blocks, debug mode, the PHP execution/upload limits, plugin
+	 * counts and the license key; consent mode (free plugins) sends only
+	 * what the consent notice lists. Read-only: it never sends anything, so
+	 * a plugin can call collect() to show the admin exactly what would be
+	 * sent.
 	 *
 	 * @since 4.0.0
 	 */
@@ -164,12 +167,21 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 				'plugin_version' => $plugin['Version'],
 				'plugin_status'  => $this->product_status,
 				'site'           => $this->get_site_data(),
-				'admin'          => $this->get_admin_data(),
-				'wp'             => $this->get_wp_data(),
-				'server'         => $this->get_server_data(),
-				'users'          => $this->get_users_data(),
-				'plugins'        => $this->get_plugins_data(),
 			];
+
+			// The admin and users blocks are commercial only.
+			if ( $this->consent->is_commercial() ) {
+				$data['admin'] = $this->get_admin_data();
+			}
+
+			$data['wp']     = $this->get_wp_data();
+			$data['server'] = $this->get_server_data();
+
+			if ( $this->consent->is_commercial() ) {
+				$data['users'] = $this->get_users_data();
+			}
+
+			$data['plugins'] = $this->get_plugins_data();
 
 			$license = $this->get_license();
 
@@ -237,7 +249,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 
 		/**
 		 * Admin block: `admin_email` option and the first administrator's
-		 * display name (same rule as the existing ping).
+		 * display name (same rule as the existing ping). Commercial only.
 		 *
 		 * @since 4.0.0
 		 *
@@ -265,7 +277,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 		}
 
 		/**
-		 * WordPress block, including the active theme.
+		 * WordPress block, including the active theme. `debug_mode` is
+		 * commercial only.
 		 *
 		 * @since 4.0.0
 		 *
@@ -276,21 +289,28 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 			$template   = (string) get_template();
 			$theme      = wp_get_theme();
 
-			return [
+			$data = [
 				'version'      => (string) get_bloginfo( 'version' ),
 				'memory_limit' => \defined( 'WP_MEMORY_LIMIT' ) ? (string) WP_MEMORY_LIMIT : '',
-				'debug_mode'   => \defined( 'WP_DEBUG' ) && WP_DEBUG,
-				'theme'        => [
-					'slug'    => $stylesheet,
-					'name'    => $theme ? (string) $theme->get( 'Name' ) : '',
-					'version' => $theme ? (string) $theme->get( 'Version' ) : '',
-					'parent'  => $template !== $stylesheet ? $template : '',
-				],
 			];
+
+			if ( $this->consent->is_commercial() ) {
+				$data['debug_mode'] = \defined( 'WP_DEBUG' ) && WP_DEBUG;
+			}
+
+			$data['theme'] = [
+				'slug'    => $stylesheet,
+				'name'    => $theme ? (string) $theme->get( 'Name' ) : '',
+				'version' => $theme ? (string) $theme->get( 'Version' ) : '',
+				'parent'  => $template !== $stylesheet ? $template : '',
+			];
+
+			return $data;
 		}
 
 		/**
-		 * Server block.
+		 * Server block. `max_execution_time` and `upload_max_filesize` are
+		 * commercial only.
 		 *
 		 * @since 4.0.0
 		 *
@@ -299,18 +319,24 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 		public function get_server_data() {
 			global $wpdb;
 
-			return [
-				'php_version'         => (string) phpversion(),
-				'db_version'          => \is_object( $wpdb ) && \is_callable( [ $wpdb, 'db_server_info' ] ) ? (string) $wpdb->db_server_info() : '',
-				'server_software'     => isset( $_SERVER['SERVER_SOFTWARE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['SERVER_SOFTWARE'] ) ) : '',
-				'php_memory_limit'    => (string) ini_get( 'memory_limit' ),
-				'max_execution_time'  => (int) ini_get( 'max_execution_time' ),
-				'upload_max_filesize' => (string) ini_get( 'upload_max_filesize' ),
+			$data = [
+				'php_version'      => (string) phpversion(),
+				'db_version'       => \is_object( $wpdb ) && \is_callable( [ $wpdb, 'db_server_info' ] ) ? (string) $wpdb->db_server_info() : '',
+				'server_software'  => isset( $_SERVER['SERVER_SOFTWARE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['SERVER_SOFTWARE'] ) ) : '',
+				'php_memory_limit' => (string) ini_get( 'memory_limit' ),
 			];
+
+			if ( $this->consent->is_commercial() ) {
+				$data['max_execution_time']  = (int) ini_get( 'max_execution_time' );
+				$data['upload_max_filesize'] = (string) ini_get( 'upload_max_filesize' );
+			}
+
+			return $data;
 		}
 
 		/**
-		 * Users block: total and per-role counts (roles with zero users left out).
+		 * Users block: total and per-role counts (roles with zero users left
+		 * out). Commercial only.
 		 *
 		 * @since 4.0.0
 		 *
@@ -335,8 +361,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 		}
 
 		/**
-		 * Plugins block: active/inactive counts and the active list, capped at
-		 * MAX_PLUGINS entries. Network-activated plugins count as active.
+		 * Plugins block: the active list (slug, name, version and the `Plugin
+		 * URI` header as `url`), capped at MAX_PLUGINS entries, plus — in
+		 * commercial mode only — the uncapped active/inactive counts.
+		 * Network-activated plugins count as active.
 		 *
 		 * @since 4.0.0
 		 *
@@ -375,7 +403,12 @@ if ( ! class_exists( __NAMESPACE__ . '\\Collector' ) ) :
 					'slug'    => self::basename_to_slug( $basename ),
 					'name'    => isset( $plugin['Name'] ) ? wp_strip_all_tags( $plugin['Name'] ) : '',
 					'version' => isset( $plugin['Version'] ) ? wp_strip_all_tags( $plugin['Version'] ) : '',
+					'url'     => ! empty( $plugin['PluginURI'] ) ? (string) esc_url_raw( $plugin['PluginURI'] ) : '',
 				];
+			}
+
+			if ( ! $this->consent->is_commercial() ) {
+				return [ 'active' => $active ];
 			}
 
 			return [

@@ -54,7 +54,10 @@ class InsightsIsolationTest extends PHPUnitTestCase {
 		foreach ( $this->files() as $file ) {
 			$code = file_get_contents( $file );
 
-			$this->assertStringContainsString( "if ( ! \\defined( 'ABSPATH' ) ) {", $code, basename( $file ) );
+			// Plain defined(): Plugin Check's direct-file-access check (it scans
+			// vendor/) does not recognise the namespaced \defined() form.
+			$this->assertStringContainsString( "if ( ! defined( 'ABSPATH' ) ) {", $code, basename( $file ) );
+			$this->assertStringNotContainsString( "\\defined( 'ABSPATH' )", $code, basename( $file ) );
 			$this->assertStringContainsString( "if ( ! class_exists( __NAMESPACE__ . '\\\\", $code, basename( $file ) );
 		}
 	}

@@ -53,8 +53,8 @@ class NoticeTest extends TestCase {
 		$this->assertStringContainsString( 'notice notice-info', $output );
 		$this->assertStringContainsString( 'Want to help make <strong>Adminkeep</strong> even better? Allow Adminkeep to collect', $output );
 		$this->assertStringContainsString( '<details><summary>What we collect</summary>', $output );
-		$this->assertStringContainsString( "Your site's admin email address and administrator name", $output );
-		$this->assertStringContainsString( 'names and versions of active plugins', $output );
+		$this->assertStringContainsString( '<li>WordPress version and memory limit</li>', $output );
+		$this->assertStringContainsString( '<li>Active plugins: name, version and plugin URL</li>', $output );
 		$this->assertStringContainsString( 'href="https://example.com/privacy"', $output );
 		$this->assertStringContainsString( 'wprepo_insights=my-plugin&wprepo_insights_action=allow&_wpnonce=nonce-wprepo_insights_my-plugin_allow', $output );
 		$this->assertStringContainsString( 'wprepo_insights_action=decline&_wpnonce=nonce-wprepo_insights_my-plugin_decline', $output );
@@ -64,34 +64,58 @@ class NoticeTest extends TestCase {
 	}
 
 	/**
-	 * The notice is the consent: it must disclose every group of data
-	 * Collector::collect() sends.
+	 * The notice is the consent: it must list exactly what
+	 * Collector::collect() sends in consent mode, and nothing it no longer
+	 * sends.
 	 *
 	 * @test
 	 */
-	public function discloses_every_payload_group() {
+	public function lists_exactly_the_consent_payload() {
+		$this->assertSame(
+			[
+				// site.url / name / locale / multisite / is_local.
+				'Site URL, name and language, whether it is a multisite, and whether it looks like a local development site',
+				// wp.version / memory_limit.
+				'WordPress version and memory limit',
+				// wp.theme.
+				'Active theme (name, version and parent theme)',
+				// server.php_version / db_version / server_software / php_memory_limit.
+				'Server environment (PHP and database versions, server software, PHP memory limit)',
+				// plugins.active[].name / version / url.
+				'Active plugins: name, version and plugin URL',
+			],
+			$this->insights_with_notice()->notice->get_collected_items()
+		);
+	}
+
+	/** @test */
+	public function never_mentions_what_consent_mode_does_not_send() {
 		$items = implode( "\n", $this->insights_with_notice()->notice->get_collected_items() );
 
-		$expected = [
-			'Site name, URL and language',                 // site.name / url / locale.
-			'multisite',                                   // site.multisite.
-			'local development site',                      // site.is_local.
-			"Your site's admin email address and administrator name", // admin.
-			'WordPress version, memory limit and debug mode', // wp.version / memory_limit / debug_mode.
-			'Active theme (name, version and parent theme)',  // wp.theme.
-			'PHP and MySQL versions, server software',     // server.*.
-			'PHP memory, execution time and upload limits', // server limits.
-			'Number of users on your site, by role',       // users.total / by_role.
-			'Number of active and inactive plugins',       // plugins.*_count.
-			'names and versions of active plugins',        // plugins.active.
-		];
-
-		foreach ( $expected as $needle ) {
-			$this->assertStringContainsString( $needle, $items );
+		foreach ( [ 'email', 'administrator', 'debug', 'execution time', 'upload', 'users', 'inactive', 'Number of' ] as $needle ) {
+			$this->assertStringNotContainsStringIgnoringCase( $needle, $items );
 		}
 
-		$this->assertStringNotContainsString( 'Your name', $items, 'The payload carries the site admin, not the clicking user.' );
 		$this->assertStringNotContainsString( 'Usage statistics', $items, 'No meta configured, so no meta line.' );
+	}
+
+	/**
+	 * What Allow sends is exactly the consent payload the notice listed.
+	 *
+	 * @test
+	 */
+	public function optin_body_is_the_trimmed_consent_payload() {
+		$insights = $this->insights_with_notice();
+		$this->request( 'allow' );
+
+		$insights->notice->handle_action();
+
+		$body = $this->http_body();
+
+		$this->assertSame( 'consent', $body['mode'] );
+		$this->assertSame( [ 'event', 'mode', 'token', 'plugin_version', 'plugin_status', 'site', 'wp', 'server', 'plugins' ], array_keys( $body ) );
+		$this->assertSame( [ 'active' ], array_keys( $body['plugins'] ) );
+		$this->assertSame( [ 'slug', 'name', 'version', 'url' ], array_keys( $body['plugins']['active'][0] ) );
 	}
 
 	/** @test */
@@ -111,8 +135,12 @@ class NoticeTest extends TestCase {
 		$this->assertStringContainsString( '<li>Usage statistics specific to My Plugin</li>', $this->render( $with_callback ) );
 	}
 
-	/** @test */
-	public function extra_items_are_appended_and_invalid_entries_dropped() {
+	/**
+	 * Items describe the plugin's own meta, so they replace the generic line.
+	 *
+	 * @test
+	 */
+	public function extra_items_replace_the_usage_statistics_line_and_invalid_entries_are_dropped() {
 		$insights = $this->insights_with_notice(
 			[ 'items' => [ 'Number of job listings', 42, '', '  ', [ 'nested' ], 'Which ATS you connect' ] ],
 			[ 'meta' => [ 'jobs' => 1 ] ]
@@ -121,8 +149,28 @@ class NoticeTest extends TestCase {
 		$items = $insights->notice->get_collected_items();
 
 		$this->assertSame( [ 'Number of job listings', 'Which ATS you connect' ], $insights->notice->items );
-		$this->assertSame( [ 'Usage statistics specific to My Plugin', 'Number of job listings', 'Which ATS you connect' ], array_slice( $items, -3 ) );
+		$this->assertSame( [ 'Active plugins: name, version and plugin URL', 'Number of job listings', 'Which ATS you connect' ], array_slice( $items, -3 ) );
+		$this->assertNotContains( 'Usage statistics specific to My Plugin', $items );
 		$this->assertStringContainsString( '<li>Which ATS you connect</li>', $this->render( $insights ) );
+		$this->assertStringNotContainsString( 'Usage statistics', $this->render( $insights ) );
+	}
+
+	/** @test */
+	public function extra_items_without_meta_are_still_appended() {
+		$insights = $this->insights_with_notice( [ 'items' => [ 'Which ATS you connect' ] ] );
+
+		$items = $insights->notice->get_collected_items();
+
+		$this->assertCount( 6, $items );
+		$this->assertSame( 'Which ATS you connect', end( $items ) );
+		$this->assertNotContains( 'Usage statistics specific to My Plugin', $items );
+	}
+
+	/** @test */
+	public function only_invalid_items_keep_the_usage_statistics_line() {
+		$insights = $this->insights_with_notice( [ 'items' => [ '', 42 ] ], [ 'meta' => [ 'jobs' => 1 ] ] );
+
+		$this->assertSame( 'Usage statistics specific to My Plugin', \array_slice( $insights->notice->get_collected_items(), -1 )[0] );
 	}
 
 	/** @test */

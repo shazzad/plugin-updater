@@ -106,7 +106,9 @@ passes; opt-out is not a track and still goes out; 5xx and network errors keep r
 `admin_init` when consent is granted and, for commercial plugins, by the hourly license sync
 (which also sends the daily track when due). `Insights::uninstall( $file )` removes all of it,
 network-wide. The notice's "What we collect" list (`Notice::get_collected_items()`) must stay in
-step with `Collector::collect()`. Server side: `wp-repo/v4`
+step with `Collector::collect()` in consent mode, which since 4.1.0 is a trimmed payload (no
+`admin`/`users` blocks, debug mode, PHP execution/upload limits or plugin counts); commercial
+mode sends everything. Plugin entries carry `url` (the `Plugin URI` header) in both modes. Server side: `wp-repo/v4`
 `track` + `optout` in `shazzad/plugin-repo` 2.9.0+ (contract: that repo's `docs/v4-api.md`).
 
 ### V2 (`src/V2/`, stable)

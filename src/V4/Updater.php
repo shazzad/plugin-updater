@@ -7,7 +7,7 @@
  */
 namespace Shazzad\PluginUpdater\V4;
 
-if ( ! \defined( 'ABSPATH' ) ) {
+if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 

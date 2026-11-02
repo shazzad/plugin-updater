@@ -13,8 +13,12 @@ class CollectorTest extends TestCase {
 		return new Collector( 'my-plugin/my-plugin.php', new Consent( 'my-plugin', $mode ), $args );
 	}
 
-	/** @test */
-	public function payload_has_the_spec_shape() {
+	/**
+	 * Free plugins (consent mode) send only what the consent notice lists.
+	 *
+	 * @test
+	 */
+	public function consent_payload_has_only_the_allowed_keys() {
 		$this->options['my-plugin_insights_consent'] = 'yes';
 		$this->options['my-plugin_insights_token']   = 'tok123';
 		$this->options['admin_email']                = 'owner@example.org';
@@ -22,7 +26,7 @@ class CollectorTest extends TestCase {
 		$data = $this->collector()->collect( 'daily' );
 
 		$this->assertSame(
-			[ 'event', 'mode', 'token', 'plugin_version', 'plugin_status', 'site', 'admin', 'wp', 'server', 'users', 'plugins' ],
+			[ 'event', 'mode', 'token', 'plugin_version', 'plugin_status', 'site', 'wp', 'server', 'plugins' ],
 			array_keys( $data )
 		);
 		$this->assertSame( 'daily', $data['event'] );
@@ -41,43 +45,106 @@ class CollectorTest extends TestCase {
 			],
 			$data['site']
 		);
-		$this->assertSame( [ 'email' => 'owner@example.org', 'name' => 'Site Admin' ], $data['admin'] );
 
+		$this->assertSame( [ 'version', 'memory_limit', 'theme' ], array_keys( $data['wp'] ) );
 		$this->assertSame( '6.9', $data['wp']['version'] );
-		$this->assertArrayHasKey( 'memory_limit', $data['wp'] );
-		$this->assertIsBool( $data['wp']['debug_mode'] );
 		$this->assertSame(
 			[ 'slug' => 'child-theme', 'name' => 'Child Theme', 'version' => '1.2.3', 'parent' => 'parent-theme' ],
 			$data['wp']['theme']
 		);
 
-		$this->assertSame(
-			[ 'php_version', 'db_version', 'server_software', 'php_memory_limit', 'max_execution_time', 'upload_max_filesize' ],
-			array_keys( $data['server'] )
-		);
+		$this->assertSame( [ 'php_version', 'db_version', 'server_software', 'php_memory_limit' ], array_keys( $data['server'] ) );
 		$this->assertSame( phpversion(), $data['server']['php_version'] );
 		$this->assertSame( '8.0.33', $data['server']['db_version'] );
-		$this->assertIsInt( $data['server']['max_execution_time'] );
 
-		$this->assertSame( [ 'total' => 3, 'by_role' => [ 'administrator' => 1, 'subscriber' => 2 ] ], $data['users'] );
-
-		$this->assertSame( 2, $data['plugins']['active_count'] );
-		$this->assertSame( 1, $data['plugins']['inactive_count'] );
 		$this->assertSame(
 			[
-				[ 'slug' => 'my-plugin', 'name' => 'My Plugin', 'version' => '2.0.0' ],
-				[ 'slug' => 'hello', 'name' => 'Hello Dolly', 'version' => '1.7.2' ],
+				'active' => [
+					[ 'slug' => 'my-plugin', 'name' => 'My Plugin', 'version' => '2.0.0', 'url' => 'https://example.com/my-plugin/' ],
+					[ 'slug' => 'hello', 'name' => 'Hello Dolly', 'version' => '1.7.2', 'url' => '' ],
+				],
 			],
-			$data['plugins']['active']
+			$data['plugins']
 		);
+
+		// Dropped for free plugins; asserted by name so a regression is obvious.
+		$this->assertArrayNotHasKey( 'users', $data );
+		$this->assertArrayNotHasKey( 'admin', $data );
+		$this->assertArrayNotHasKey( 'debug_mode', $data['wp'] );
+		$this->assertArrayNotHasKey( 'max_execution_time', $data['server'] );
+		$this->assertArrayNotHasKey( 'upload_max_filesize', $data['server'] );
+		$this->assertArrayNotHasKey( 'active_count', $data['plugins'] );
+		$this->assertArrayNotHasKey( 'inactive_count', $data['plugins'] );
+		$this->assertStringNotContainsString( 'owner@example.org', json_encode( $data ) );
+		$this->assertStringNotContainsString( 'Akismet', json_encode( $data ), 'Inactive plugins are never listed.' );
 
 		$this->assertArrayNotHasKey( 'license', $data );
 		$this->assertArrayNotHasKey( 'meta', $data );
 	}
 
+	/**
+	 * Commercial plugins keep the full payload, plus the plugin URL.
+	 *
+	 * @test
+	 */
+	public function commercial_payload_keeps_every_group() {
+		$this->options['my-plugin_insights_token'] = 'tok123';
+		$this->options['admin_email']              = 'owner@example.org';
+
+		$data = $this->collector( [], 'commercial' )->collect( 'daily' );
+
+		$this->assertSame(
+			[ 'event', 'mode', 'token', 'plugin_version', 'plugin_status', 'site', 'admin', 'wp', 'server', 'users', 'plugins' ],
+			array_keys( $data )
+		);
+		$this->assertSame( 'commercial', $data['mode'] );
+		$this->assertSame( 'tok123', $data['token'] );
+
+		$this->assertSame( [ 'url', 'name', 'locale', 'is_local', 'multisite' ], array_keys( $data['site'] ) );
+		$this->assertSame( [ 'email' => 'owner@example.org', 'name' => 'Site Admin' ], $data['admin'] );
+
+		$this->assertSame( [ 'version', 'memory_limit', 'debug_mode', 'theme' ], array_keys( $data['wp'] ) );
+		$this->assertIsBool( $data['wp']['debug_mode'] );
+
+		$this->assertSame(
+			[ 'php_version', 'db_version', 'server_software', 'php_memory_limit', 'max_execution_time', 'upload_max_filesize' ],
+			array_keys( $data['server'] )
+		);
+		$this->assertIsInt( $data['server']['max_execution_time'] );
+
+		$this->assertSame( [ 'total' => 3, 'by_role' => [ 'administrator' => 1, 'subscriber' => 2 ] ], $data['users'] );
+
+		$this->assertSame( [ 'active_count', 'inactive_count', 'active' ], array_keys( $data['plugins'] ) );
+		$this->assertSame( 2, $data['plugins']['active_count'] );
+		$this->assertSame( 1, $data['plugins']['inactive_count'] );
+		$this->assertSame(
+			[
+				[ 'slug' => 'my-plugin', 'name' => 'My Plugin', 'version' => '2.0.0', 'url' => 'https://example.com/my-plugin/' ],
+				[ 'slug' => 'hello', 'name' => 'Hello Dolly', 'version' => '1.7.2', 'url' => '' ],
+			],
+			$data['plugins']['active']
+		);
+	}
+
+	/** @test */
+	public function plugin_url_is_the_plugin_uri_header_passed_through_esc_url_raw() {
+		\Brain\Monkey\Functions\when( 'esc_url_raw' )->alias( function ( $url ) {
+			return 'javascript:alert(1)' === $url ? '' : $url;
+		} );
+		$this->installed_plugins['hello.php']['PluginURI'] = 'javascript:alert(1)';
+
+		foreach ( [ 'consent', 'commercial' ] as $mode ) {
+			$active = $this->collector( [], $mode )->get_plugins_data()['active'];
+
+			$this->assertSame( 'https://example.com/my-plugin/', $active[0]['url'], $mode );
+			$this->assertSame( '', $active[1]['url'], $mode );
+		}
+	}
+
 	/** @test */
 	public function payload_is_json_encodable() {
 		$this->assertNotFalse( json_encode( $this->collector()->collect() ) );
+		$this->assertNotFalse( json_encode( $this->collector( [], 'commercial' )->collect() ) );
 	}
 
 	/** @test */
@@ -91,11 +158,16 @@ class CollectorTest extends TestCase {
 		}
 		$this->installed_plugins['off/off.php'] = [ 'Name' => 'Off', 'Version' => '1.0' ];
 
-		$plugins = $this->collector()->get_plugins_data();
+		$plugins = $this->collector( [], 'commercial' )->get_plugins_data();
 
 		$this->assertCount( 200, $plugins['active'] );
 		$this->assertSame( 250, $plugins['active_count'] );
 		$this->assertSame( 1, $plugins['inactive_count'] );
+
+		$free = $this->collector()->get_plugins_data();
+
+		$this->assertSame( [ 'active' ], array_keys( $free ) );
+		$this->assertCount( 200, $free['active'] );
 	}
 
 	/** @test */
